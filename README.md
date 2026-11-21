@@ -15,14 +15,24 @@ et le clavier de l'humain n'a plus d'effet sur le perso tant que l'IA est ON.
 1. LM Studio : charge le modèle, démarre le serveur local (port 1234). **Mets le contexte à ≥ 16k tokens** (le prompt
    + la perception font ~5-8k tokens).
 2. Lance le jeu une fois : `config/aiplayer.json` est créé.
-3. En jeu : `/ai on`, `/ai off`, `/ai tell <ordre>`, `/ai status`, `/ai reload`, `/ai ping` (teste LM Studio).
+3. En jeu : `/ai on`, `/ai off`, `/ai tell <ordre>`, `/ai status`, `/ai reload`, `/ai ping` (teste LM Studio),
+   **`/ai settings`** (ou `/ai config`) : ouvre l'écran de réglages. Il y a aussi un bouton **AI Player** en haut à gauche du menu Échap.
 4. **Astuce** : après `/ai on`, appuie sur **Échap**. Tu peux alors utiliser souris/clavier ailleurs, le perso continue
    (en solo, le mixin empêche le menu Échap de geler le monde ; désactivable avec `keepRunningInPause=false`).
    Ne rouvre pas le jeu avec la souris pendant que l'IA joue : le mouvement de souris tourne la tête du perso.
 
-Config (`aiplayer.json`) : `url`, `model`, `historySize`, `scanRadius`, `requestTimeoutSeconds`, `maxActionsPerPlan`,
-`showThoughts`, `allowAttackPlayers`, `keepRunningInPause`, `temperature` (0.2-0.5 conseillé pour un 12B, -1 = non envoyé),
-`extraSystemPrompt`.
+**Écran de réglages** (`SettingsScreen`) : Host + Port du serveur, nom exact du modèle (colle-le dans le champ, ou « Fetch models »
+puis `<` `>` pour parcourir ceux de LM Studio), **timeout en secondes (0 = illimité)**, température, max tokens, rayon de scan,
+lignes de chat, actions par plan, prompt supplémentaire, **Thinking** (OFF par défaut ; `default` = non envoyé, ou low/medium/high/on),
+et les interrupteurs (pensées, verbose, errance si l'IA ne répond pas, tourner dans le menu Échap, attaquer les joueurs).
+**Save** écrit `config/aiplayer.json`, **Reset to defaults** recharge le preset par défaut (= les valeurs initiales de `Config.java`),
+**Cancel** ferme sans rien changer. Le schéma (`http`/`https`) et le chemin de l'URL (`/api/v1/chat`) ne sont pas modifiés par l'écran.
+
+Config (`aiplayer.json`) : `url`, `model`, `historySize`, `scanRadius`, `requestTimeoutSeconds` (**0 = attend sans limite** ; sinon
+« échec » au bout de N secondes), `maxActionsPerPlan`, `showThoughts`, `allowAttackPlayers`, `keepRunningInPause`,
+`temperature` (0.2-0.5 conseillé pour un 12B, -1 = non envoyé), `extraSystemPrompt`, `maxOutputTokens`, `reasoning` (**`"off"` par défaut**
+= thinking coupé ; `""` = non envoyé, utile si LM Studio refuse le réglage pour ton modèle), `fallbackWander`, `verbose`, `configVersion`.
+Les anciens `aiplayer.json` (sans `configVersion` ou < 2) passent automatiquement `reasoning` à `"off"` au premier chargement.
 
 ## 2. Build
 
@@ -60,7 +70,9 @@ Boucle : **perception -> LLM -> JSON -> file d'actions -> exécution tick par ti
 | `Perception.java` | Monde -> texte compact (STATUS, INVENTORY, OPEN SCREEN, ENTITIES, **HINTS**, MAP, BLOCKS). |
 | `Prompt.java` | Prompt système. **Source de vérité de ce que l'IA sait faire.** |
 | `LlmClient.java` | HTTP LM Studio (`POST /api/v1/chat {model, system_prompt, input}`), extraction du JSON. |
-| `Config.java` | `config/aiplayer.json`. |
+| `Config.java` | `config/aiplayer.json` ; les valeurs initiales des champs = preset par défaut (`Config.defaults()`). |
+| `SettingsScreen.java` | Écran de réglages (widgets standards, sans `render()`). Ouvert par `/ai settings` ou `PauseMenuButton`. |
+| `PauseMenuButton.java` | Bouton « AI Player » dans le menu Échap (`ScreenEvents.AFTER_INIT` + `Screens.getWidgets`, renommé depuis `getButtons` en 26.x). |
 
 ### Principes à respecter
 - **Pas de touches clavier simulées.** Mouvement = `AiInput`. Interactions = appels directs `mc.gameMode.*` via `Compat`.
@@ -166,3 +178,6 @@ Si le JSON est mal formé : baisser `temperature` (0.2-0.4) ; le mod tolère dé
   `use_item` direct ; alias d'actions et `pos:[x,y,z]` tolérés ; `memory` vide ne l'efface plus ; section HINTS dans la
   perception ; menu Échap ignoré par la perception et jamais fermé ; prompt réécrit pour un 12B (recettes, exemples,
   priorités) ; options `keepRunningInPause` et `temperature`.
+- v1.1 (suite) : écran de réglages (`/ai settings` + bouton du menu Échap) ; `Config.java`/`LlmClient.java` restaurés (supprimés par erreur de `main`) ;
+  thinking coupé par défaut (`reasoning="off"`, migré dans les anciennes configs) ; `requestTimeoutSeconds=0` = pas de timeout ;
+  message d'erreur explicite quand le timeout est atteint. Compile OK en CI sur 26.3, **non testé en jeu**.
