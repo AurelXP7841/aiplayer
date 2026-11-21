@@ -34,6 +34,7 @@ public final class ModeHints {
         switch (c.mode) {
             case DEFEND -> defend(sb, c, p, ents);
             case KILL -> kill(sb, c, p, level);
+            case BEAFRIEND -> Servant.hints(sb, c, p, level, ents);
             default -> killAll(sb, p, level, ents);
         }
         return sb.toString();

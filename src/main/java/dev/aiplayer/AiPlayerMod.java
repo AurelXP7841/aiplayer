@@ -41,6 +41,7 @@ public class AiPlayerMod implements ClientModInitializer {
         switch (mode) {
             case DEFEND -> c.localMsg("§6[AI] DEFEND mode: guarding this spot, radius " + Config.INSTANCE.defendRadius + "." + tail + " §7/ai normal or /ai off to stop.");
             case KILL -> c.localMsg("§c[AI] KILL mode: hunting " + target + "." + tail + " §7/ai normal or /ai off to stop.");
+            case BEAFRIEND -> c.localMsg("§b[AI] BEAFRIEND mode: servant. It obeys the chat (follow, go to base, attack on request). §7/ai normal or /ai off to stop.");
             default -> c.localMsg("§4[AI] KILL EVERYONE mode." + tail + " §7/ai normal or /ai off to stop.");
         }
         return 1;
@@ -109,6 +110,7 @@ public class AiPlayerMod implements ClientModInitializer {
                                 .executes(ctx -> killUsage())
                                 .then(ClientCommands.argument("target", StringArgumentType.greedyString())
                                         .executes(ctx -> kill(StringArgumentType.getString(ctx, "target")))))
+                        .then(ClientCommands.literal("beafriend").executes(ctx -> startMode(Controller.Mode.BEAFRIEND, "", false)))
                         .then(ClientCommands.literal("normal").executes(ctx -> {
                             if (Controller.INSTANCE.mode == Controller.Mode.NORMAL) {
                                 Controller.INSTANCE.localMsg("§7[AI] already in normal mode.");

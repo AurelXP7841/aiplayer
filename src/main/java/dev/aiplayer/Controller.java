@@ -52,15 +52,16 @@ public class Controller {
     private boolean useKeyHeld;
 
     // ---------------------------------------------------------------- modes de combat
-    /** NORMAL = survie (prompt habituel). Les autres REMPLACENT le prompt : voir {@link ModePrompts}. */
-    public enum Mode { NORMAL, DEFEND, KILL, KILL_ALL }
+    /** NORMAL = survie (prompt habituel). Les autres REMPLACENT le prompt : voir {@link ModePrompts}. BEAFRIEND = serviteur (voir {@link Servant}). */
+    public enum Mode { NORMAL, DEFEND, KILL, KILL_ALL, BEAFRIEND }
     public Mode mode = Mode.NORMAL;
     public String killTarget = "";   // nom du joueur visé (mode KILL)
     public boolean modeChat;         // "chat" à la fin de la commande : l'IA parle pendant le combat
-    public BlockPos base;            // centre de la base à défendre (mode DEFEND)
+    public BlockPos base;            // centre de la base (mode DEFEND : là où on tape la commande ; mode BEAFRIEND : base fixe)
     public BlockPos lastTargetPos;   // dernière position connue de la cible (mode KILL)
     public long lastTargetMs;
     private String savedMemory = ""; // notes du mode normal, restaurées par /ai normal
+    private final Deque<String> unread = new ArrayDeque<>(); // BEAFRIEND : messages du chat pas encore montrés à l'IA
 
     public LocalPlayer player() { return mc.player; }
     public ClientLevel level() { return mc.level; }
@@ -86,6 +87,8 @@ public class Controller {
 
     private void leaveMode() {
         if (mode == Mode.NORMAL) return;
+        Servant.reset();
+        unread.clear();
         mode = Mode.NORMAL;
         memory = savedMemory;
         killTarget = "";
@@ -94,8 +97,10 @@ public class Controller {
         lastTargetPos = null;
     }
 
-    /** /ai defend, /ai kill <joueur|everyone>, /ai normal. Active l'IA si besoin et change toute sa mission. */
+    /** /ai defend, /ai kill <joueur|everyone>, /ai beafriend, /ai normal. Active l'IA si besoin et change toute sa mission. */
     public void setMode(Mode m, String target, boolean chatOn) {
+        Servant.reset();
+        unread.clear();
         if (!enabled) setEnabled(true);
         if (m == Mode.NORMAL) {
             leaveMode();
@@ -105,7 +110,8 @@ public class Controller {
             mode = m;
             killTarget = target == null ? "" : target.strip();
             modeChat = chatOn;
-            base = m == Mode.DEFEND && mc.player != null ? mc.player.blockPosition() : null;
+            base = m == Mode.DEFEND && mc.player != null ? mc.player.blockPosition()
+                    : m == Mode.BEAFRIEND ? Servant.BASE : null;
             lastTargetPos = null;
         }
         generation++;      // une requête partie avec l'ancien prompt sera ignorée à son retour
@@ -121,6 +127,7 @@ public class Controller {
 
     /** Les attaques contre un joueur passent par ce filtre (voir Actions.Attack). */
     public boolean mayAttackPlayer(Player target) {
+        if (mode == Mode.BEAFRIEND) return Servant.mayAttack(target.getName().getString()); // seulement si le chat l'a demandé
         if (Config.INSTANCE.allowAttackPlayers) return true;
         return mode == Mode.KILL_ALL
                 || (mode == Mode.KILL && target.getName().getString().equalsIgnoreCase(killTarget));
@@ -133,6 +140,8 @@ public class Controller {
             case DEFEND -> s = "DEFEND THE BASE" + (base != null ? " at (" + base.getX() + "," + base.getY() + "," + base.getZ() + ")" : "")
                     + ". Stay there, kill hostile monsters that come close, never mine or explore.";
             case KILL -> s = "KILL THE PLAYER " + killTarget + ". Nothing else matters.";
+            case BEAFRIEND -> s = "BE A FRIEND: you are the servant of the players. Obey their orders from the chat. Stay where you are unless told. "
+                    + "Never mine or craft. Attack only on request.";
             case KILL_ALL -> s = "KILL EVERYONE. Nothing else matters.";
             default -> s = "";
         }
@@ -156,12 +165,25 @@ public class Controller {
         while (chat.size() > Math.max(1, Config.INSTANCE.historySize)) chat.removeFirst();
         if (!enabled || mc.player == null) return;
         String me = mc.player.getName().getString();
+        if (mode == Mode.BEAFRIEND) {
+            // beaucoup de serveurs envoient le chat comme message "système" (playerChat=false) : on le lit quand même
+            boolean looksLikeChat = playerChat || !Servant.header(text).isEmpty();
+            if (looksLikeChat && !Servant.isOwn(text, me)) {
+                Servant.onMessage(this, text);
+                unread.addLast(text);
+                while (unread.size() > 10) unread.removeFirst();
+                interrupt = true;
+                interruptCooldown = 0; // on réagit tout de suite, pas dans 2 secondes
+            }
+            return;
+        }
         if (playerChat && !text.contains("<" + me + ">") && !text.startsWith(me + ":")) interrupt = true;
     }
 
     public void onOwnerInstruction(String text) {
         chat.addLast("[OWNER INSTRUCTION] " + text);
         while (chat.size() > Math.max(1, Config.INSTANCE.historySize)) chat.removeFirst();
+        if (mode == Mode.BEAFRIEND) unread.addLast("[OWNER INSTRUCTION] " + text);
         interrupt = true;
     }
 
@@ -377,6 +399,12 @@ public class Controller {
         if (chat.isEmpty()) sb.append("(no messages)\n");
         int idx = 0;
         for (String m : chat) if (idx++ >= skip) sb.append(m).append('\n');
+        if (mode == Mode.BEAFRIEND) {
+            sb.append("=== NEW CHAT MESSAGES (unread: read them FIRST, they may contain orders) ===\n");
+            if (unread.isEmpty()) sb.append("(none)\n");
+            for (String um : unread) sb.append(um).append('\n');
+            unread.clear();
+        }
         if (mode != Mode.NORMAL) sb.append("=== CURRENT MISSION ===\n").append(missionLine()).append('\n');
         sb.append("=== MEMORY ===\n").append(memory.isEmpty() ? "(empty)" : memory).append('\n');
         sb.append("=== YOUR LAST PLAN ===\n").append(lastPlan.isEmpty() ? "(none)" : lastPlan).append('\n');
@@ -404,7 +432,7 @@ public class Controller {
             localMsg(String.format(Locale.ROOT, "§c[AI] LLM error after %.0fs: ", ms / 1000.0) + why);
             // backoff : 5s, 10s, 20s, 40s, puis 60s max (évite d'empiler les requêtes sur un LM Studio saturé)
             cooldown = Math.min(100 << Math.min(llmFailures - 1, 4), 1200);
-            if (Config.INSTANCE.fallbackWander && mode != Mode.DEFEND) wander();
+            if (Config.INSTANCE.fallbackWander && mode != Mode.DEFEND && mode != Mode.BEAFRIEND) wander();
             return;
         }
         llmFailures = 0;

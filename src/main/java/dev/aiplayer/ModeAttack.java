@@ -20,7 +20,7 @@ public class ModeAttack extends Actions.Attack {
         Entity e = c.level().getEntity(id);
         if (e == null || !e.isAlive()) return Status.DONE; // mort ou disparu
         if (e instanceof Player pl && !c.mayAttackPlayer(pl)) {
-            return fail("attacking this player is not allowed in this mission (only the named target can be attacked)");
+            return fail("attacking this player is not allowed: no player asked you to attack him in the chat");
         }
         if (++ticks > maxTicks) return Status.DONE;
         if (ticks == 1) c.selectBestWeapon();
