@@ -62,7 +62,7 @@ jobs:
         run: |
           JAR=$(find ~/.gradle -name 'minecraft-client.jar' | head -1)
           echo "JAR=$JAR"
-          J() { javap -cp "$JAR" -public -protected "$@" 2>&1 || true; }
+          J() { javap -cp "$JAR" -protected "$@" 2>&1 || true; }
           echo "=== ContainerInput"; J net.minecraft.world.inventory.ContainerInput
           echo "=== ClickAction"; J net.minecraft.world.inventory.ClickAction | head -8
           echo "=== MultiPlayerGameMode (all)"; J net.minecraft.client.multiplayer.MultiPlayerGameMode
