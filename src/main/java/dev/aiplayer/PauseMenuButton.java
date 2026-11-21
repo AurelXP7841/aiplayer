@@ -17,7 +17,7 @@ public final class PauseMenuButton {
     public static void register() {
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
             if (screen instanceof PauseScreen) {
-                Screens.getButtons(screen).add(Button.builder(Component.literal("AI Player"),
+                Screens.getWidgets(screen).add(Button.builder(Component.literal("AI Player"),
                         b -> Compat.openScreen(client, new SettingsScreen(screen)))
                         .bounds(6, 6, 80, 20).build());
             }
