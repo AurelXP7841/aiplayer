@@ -56,6 +56,21 @@ jobs:
           chmod +x gradlew
           ./gradlew build --stacktrace
 
+      - name: Inspect Minecraft API (debug, runs on failure)
+        if: failure()
+        run: |
+          JAR=$(find ~/.gradle _build/.gradle -name '*.jar' -path '*minecraft*' 2>/dev/null | xargs -I{} sh -c 'unzip -l {} 2>/dev/null | grep -q "net/minecraft/client/Minecraft.class" && echo {}' | head -1)
+          echo "JAR=$JAR"
+          [ -z "$JAR" ] && exit 0
+          echo "--- classes matching Click|Message|Chat in inventory/network/gui"; unzip -l "$JAR" | awk '{print $4}' | grep -E "net/minecraft/world/inventory/.*Click|ContainerInput|net/minecraft/client/gui/Gui\.class|net/minecraft/client/Minecraft\.class" | head
+          echo "--- Minecraft"; javap -cp "$JAR" -public net.minecraft.client.Minecraft | grep -iE "screen|gui|isPaused|gameMode|options| player|level" | head -40
+          echo "--- Gui"; javap -cp "$JAR" -public net.minecraft.client.gui.Gui 2>&1 | grep -iE "screen|message|chat" | head -20
+          echo "--- LocalPlayer"; javap -cp "$JAR" -public net.minecraft.client.player.LocalPlayer | grep -iE "message|chat|input|respawn|ClientInput" | head -20
+          echo "--- MultiPlayerGameMode"; javap -cp "$JAR" -public net.minecraft.client.multiplayer.MultiPlayerGameMode | grep -iE "click|useItem|release|attack|destroy|interact" | head -20
+          echo "--- ClientInput/KeyboardInput"; javap -cp "$JAR" -public -protected net.minecraft.client.player.ClientInput net.minecraft.client.player.KeyboardInput 2>&1 | head -30
+          echo "--- Screen"; javap -cp "$JAR" -public net.minecraft.client.gui.screens.Screen | grep -iE "isPauseScreen"; javap -cp "$JAR" -public net.minecraft.client.gui.screens.PauseScreen | grep -iE "isPauseScreen"
+          echo "--- all classes containing 'Click'"; unzip -l "$JAR" | awk '{print $4}' | grep -E "Click" | head -20
+
       - uses: actions/upload-artifact@v4
         with:
           name: aiplayer-jar
