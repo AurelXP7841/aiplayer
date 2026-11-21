@@ -26,16 +26,21 @@ Config (`aiplayer.json`) : `url`, `model`, `historySize`, `scanRadius`, `request
 
 ## 2. Build
 
-1. Génère un projet vierge sur https://fabricmc.net/develop/template (Minecraft 26.3) pour récupérer
-   `gradle/wrapper/` + les versions exactes (loader, loom, fabric-api).
-2. Copie dans le template : `src/`, `build.gradle`, `settings.gradle`, `gradle.properties`
-   (remplace les `CHANGE_ME` par les valeurs de fabricmc.net/develop).
-3. `./gradlew build` (JDK 25) -> `build/libs/aiplayer-1.1.0.jar` dans `.minecraft/mods/` avec Fabric API.
+**GitHub Actions** (`.github/workflows/build.yml`) compile à chaque push : le workflow prend les versions exactes
+(loader, loom, fabric-api, wrapper Gradle) dans la branche `26.3` de `FabricMC/fabric-example-mod`, y superpose `src/`,
+`build.gradle`, `settings.gradle`, `gradle.properties`, puis `./gradlew build` (JDK 25). Le jar est publié sur la branche
+**`build-output`** (`git fetch origin build-output` puis `git show origin/build-output:aiplayer-1.1.0.jar > aiplayer.jar`)
+et en artefact `aiplayer-jar`. Un tag `v*` crée aussi une Release GitHub.
+Les `CHANGE_ME` de `gradle.properties` sont remplacés par le CI : ne pas les toucher.
 
-> **Le code n'a PAS pu être compilé contre 26.3 par l'IA qui l'a écrit** (pas d'accès réseau à Mojang/Fabric) :
-> seule la syntaxe est vérifiée. Si la compilation casse, regarde dans cet ordre : `Compat.java`, `AiInput.java`,
-> les imports `net.minecraft.*` de `Actions.java`/`Perception.java`, les imports Fabric API de `AiPlayerMod.java`.
-> Les mixins sont tolérants (`require=0`, config `required:false`) : s'ils ne s'appliquent pas, le jeu démarre quand même.
+Build local : génère un projet sur https://fabricmc.net/develop/template (26.3), copie `src/`, `build.gradle`, `settings.gradle`,
+`gradle.properties` dedans (remplace les `CHANGE_ME`), `./gradlew build` -> `build/libs/aiplayer-1.1.0.jar` dans `.minecraft/mods/` avec Fabric API.
+
+> **Compile OK sur 26.3** (vérifié par le CI). Changements d'API 26.x déjà gérés dans `Compat.java` : `ClickType` -> `ContainerInput`,
+> `MultiPlayerGameMode.handleContainerInput`, `mc.screen` -> `mc.gui.screen()`, `displayClientMessage` -> `sendSystemMessage`,
+> `interact(..., EntityHitResult, hand)`, `swing(hand, SwingAnimation, boolean)`. En cas de nouvelle version de MC, regarder d'abord
+> `Compat.java` et `AiInput.java`. Pour inspecter l'API réelle : `javap -cp ~/.gradle/caches/fabric-loom/<ver>/minecraft-client.jar <classe>`.
+> **Non testé en jeu** : seule la compilation est vérifiée.
 
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -89,7 +94,7 @@ Boucle : **perception -> LLM -> JSON -> file d'actions -> exécution tick par ti
    `Input(forward, backward, left, right, jump, shift, sprint)`, `Vec2`. Si `tick()` a changé de signature, adapter ici.
 2. `Compat.isPaused` (`Minecraft.isPaused()`), `Compat.startUse/releaseUse` (`MultiPlayerGameMode.useItem/releaseUsingItem`),
    `Compat.isFood` (`DataComponents.FOOD`).
-3. Mixins : `Screen.isPauseScreen()` et `PauseScreen.isPauseScreen()`. Si le monde se gèle quand même avec Échap, les noms ont
+3. Mixin : `Screen.isPauseScreen()` (PauseScreen en hérite en 26.3 ; `Gui.isPausing()` l'appelle). Si le monde se gèle quand même avec Échap, les noms ont
    changé : vérifier dans les logs `Mixin apply failed` / `@Inject … could not find any targets`.
 4. `Compat.click` -> `MultiPlayerGameMode.handleInventoryMouseClick`, enum `ClickType`.
 5. `Actions.Craft` : indices de slots (`InventoryMenu` : 0 résultat, 1-4 grille, 5-8 armure, 9-35 inv, 36-44 barre, 45 main
