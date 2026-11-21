@@ -141,7 +141,7 @@ public class Controller {
                     + ". Stay there, kill hostile monsters that come close, never mine or explore.";
             case KILL -> s = "KILL THE PLAYER " + killTarget + ". Nothing else matters.";
             case BEAFRIEND -> s = "BE A FRIEND: you are the servant of the players. Obey their orders from the chat. Stay where you are unless told. "
-                    + "Attack, mine and drop items ONLY when a player asks in the chat. Never craft or build.";
+                    + "Attack, mine, drop items, craft and BUILD (place blocks) ONLY when a player asks in the chat. When asked to build, you are allowed: do it.";
             case KILL_ALL -> s = "KILL EVERYONE. Nothing else matters.";
             default -> s = "";
         }
