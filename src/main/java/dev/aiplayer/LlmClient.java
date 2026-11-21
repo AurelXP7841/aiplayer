@@ -10,6 +10,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /** Appelle l'API native de LM Studio : POST /api/v1/chat {model, system_prompt, input} */
@@ -41,6 +43,28 @@ public final class LlmClient {
                 throw new RuntimeException("HTTP " + r.statusCode() + ": " + b.substring(0, Math.min(200, b.length())));
             }
             return extractText(r.body());
+        });
+    }
+
+    /** Liste les modèles chargés/disponibles dans LM Studio (GET /v1/models sur le même hôte que chatUrl). */
+    public static CompletableFuture<List<String>> listModels(String chatUrl) {
+        URI base = URI.create(chatUrl);
+        String root = base.getScheme() + "://" + base.getAuthority();
+        HttpRequest req = HttpRequest.newBuilder(URI.create(root + "/v1/models"))
+                .timeout(Duration.ofSeconds(10)).GET().build();
+        return HTTP.sendAsync(req, HttpResponse.BodyHandlers.ofString()).thenApply(r -> {
+            if (r.statusCode() / 100 != 2) throw new RuntimeException("HTTP " + r.statusCode());
+            JsonObject o = JsonParser.parseString(r.body()).getAsJsonObject();
+            JsonArray arr = o.has("data") ? o.getAsJsonArray("data")
+                    : o.has("models") ? o.getAsJsonArray("models") : new JsonArray();
+            List<String> out = new ArrayList<>();
+            for (JsonElement el : arr) {
+                if (!el.isJsonObject()) continue;
+                JsonObject m = el.getAsJsonObject();
+                String id = m.has("id") ? m.get("id").getAsString() : m.has("key") ? m.get("key").getAsString() : null;
+                if (id != null && !id.toLowerCase().contains("embed")) out.add(id);
+            }
+            return out;
         });
     }
 

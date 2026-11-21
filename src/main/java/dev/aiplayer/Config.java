@@ -32,6 +32,15 @@ public class Config {
         return FabricLoader.getInstance().getConfigDir().resolve("aiplayer.json");
     }
 
+    /** Enregistre la config actuelle (utilisé par l'écran de réglages). */
+    public static void save() {
+        try {
+            Files.writeString(path(), GSON.toJson(INSTANCE));
+        } catch (Exception e) {
+            System.err.println("[aiplayer] config save error: " + e);
+        }
+    }
+
     public static void load() {
         try {
             Path p = path();
