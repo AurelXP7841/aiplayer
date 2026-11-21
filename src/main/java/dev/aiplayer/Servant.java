@@ -100,6 +100,7 @@ public final class Servant {
 
     /** Section MISSION HINTS du mode beafriend : base, joueurs (ids), creatures proches (ids), permissions d'attaque. */
     public static void hints(StringBuilder sb, Controller c, LocalPlayer p, ClientLevel level, List<Entity> ents) {
+        sb.append("your_name=").append(p.getName().getString()).append(" (players call you by this name)\n");
         double bd = Math.sqrt(p.distanceToSqr(BASE.getX() + 0.5, BASE.getY(), BASE.getZ() + 0.5));
         sb.append(String.format(Locale.ROOT,
                 "base=(%d,%d,%d) your_distance_to_base=%.0f. Go there ONLY if a player asks you to. Command: {\"type\":\"move_to\",\"x\":%d,\"y\":%d,\"z\":%d,\"range\":2,\"sprint\":true}\n",
