@@ -87,7 +87,7 @@ public final class Perception {
 
         // ---------- ECRAN OUVERT ----------
         if (Compat.isContainerScreen(mc)) { // seulement inventaire/coffre/table : le menu Échap de l'humain ne compte pas
-            sb.append("=== OPEN SCREEN: ").append(mc.screen.getClass().getSimpleName())
+            sb.append("=== OPEN SCREEN: ").append(Compat.screen(mc).getClass().getSimpleName())
                     .append(" / menu ").append(p.containerMenu.getClass().getSimpleName()).append(" === (non-empty menu slots)\n");
             for (Slot sl : p.containerMenu.slots) {
                 ItemStack s = sl.getItem();
@@ -150,9 +150,9 @@ public final class Perception {
         LocalPlayer p = mc.player;
         sb.append("=== HINTS (computed by the game mod, reliable) ===\n");
 
-        if (mc.screen == null) sb.append("ui: none (normal play)\n");
+        if (Compat.screen(mc) == null) sb.append("ui: none (normal play)\n");
         else if (Compat.isContainerScreen(mc)) sb.append("ui: a container/inventory screen is open -> use click_slot or craft, then close_screen\n");
-        else sb.append("ui: ").append(mc.screen.getClass().getSimpleName())
+        else sb.append("ui: ").append(Compat.screen(mc).getClass().getSimpleName())
                 .append(" is open (probably the human's pause menu). IGNORE it: you keep playing normally.\n");
 
         List<String> warn = new ArrayList<>();

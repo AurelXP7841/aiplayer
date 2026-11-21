@@ -10,7 +10,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -72,7 +72,7 @@ public class Controller {
     }
 
     public void localMsg(String s) {
-        if (mc.player != null) mc.player.displayClientMessage(Component.literal(s), false);
+        if (mc.player != null) mc.player.sendSystemMessage(Component.literal(s));
     }
 
     // ---------------------------------------------------------------- chat
@@ -97,7 +97,7 @@ public class Controller {
 
     public String status() {
         return "enabled=" + enabled + " thinking=" + thinking
-                + " screen=" + (mc.screen == null ? "none" : mc.screen.getClass().getSimpleName())
+                + " screen=" + (Compat.screen(mc) == null ? "none" : Compat.screen(mc).getClass().getSimpleName())
                 + " paused=" + Compat.isPaused(mc) + " current=" + (current == null ? "none" : current.describe())
                 + " queued=" + queue.size() + " memory=\"" + memory + "\"";
     }
@@ -125,7 +125,7 @@ public class Controller {
         }
         wasActive = true;
 
-        if (p.isDeadOrDying() || mc.screen instanceof DeathScreen) {
+        if (p.isDeadOrDying() || Compat.screen(mc) instanceof DeathScreen) {
             if (respawnTimer-- <= 0) {
                 p.respawn();
                 respawnTimer = 40;
@@ -191,7 +191,7 @@ public class Controller {
      * Le début/la fin de l'utilisation sont faits en direct (Compat.startUse / releaseUse).
      */
     private void applyUse() {
-        boolean want = use && mc.screen == null;
+        boolean want = use && Compat.screen(mc) == null;
         if (want != useKeyHeld) {
             mc.options.keyUse.setDown(want);
             useKeyHeld = want;
@@ -347,10 +347,10 @@ public class Controller {
         LocalPlayer p = player();
         String id = Perception.itemId(p.getInventory().getItem(idx));
         int cid = p.inventoryMenu.containerId;
-        if (isArmor(id)) Compat.click(mc, p, cid, menuSlot(idx), 0, ClickType.QUICK_MOVE);
-        else if (offhand) Compat.click(mc, p, cid, menuSlot(idx), 40, ClickType.SWAP);
+        if (isArmor(id)) Compat.click(mc, p, cid, menuSlot(idx), 0, ContainerInput.QUICK_MOVE);
+        else if (offhand) Compat.click(mc, p, cid, menuSlot(idx), 40, ContainerInput.SWAP);
         else if (idx < 9) Compat.selectSlot(p, idx);
-        else Compat.click(mc, p, cid, menuSlot(idx), Compat.selectedSlot(p), ClickType.SWAP);
+        else Compat.click(mc, p, cid, menuSlot(idx), Compat.selectedSlot(p), ContainerInput.SWAP);
     }
 
     public void selectBestTool(BlockState state) {

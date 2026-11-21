@@ -1,6 +1,7 @@
 package dev.aiplayer;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.player.LocalPlayer;
@@ -9,14 +10,15 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
 
 /**
  * TOUS les appels Minecraft les plus fragiles d'une version à l'autre sont ici.
  * Si la compilation casse sur 26.3, c'est (presque) toujours dans ce fichier
- * (ex: ClickType a pu être renommé, signatures de useItemOn / interact...).
+ * (ex: ContainerInput a pu être renommé, signatures de useItemOn / interact...).
  */
 public final class Compat {
     private Compat() {}
@@ -42,11 +44,11 @@ public final class Compat {
     }
 
     public static void interact(Minecraft mc, LocalPlayer p, Entity e) {
-        mc.gameMode.interact(p, e, InteractionHand.MAIN_HAND);
+        mc.gameMode.interact(p, e, new EntityHitResult(e, e.position().add(0, e.getBbHeight() * 0.6, 0)), InteractionHand.MAIN_HAND);
     }
 
-    public static void click(Minecraft mc, LocalPlayer p, int containerId, int slot, int button, ClickType type) {
-        mc.gameMode.handleInventoryMouseClick(containerId, slot, button, type, p);
+    public static void click(Minecraft mc, LocalPlayer p, int containerId, int slot, int button, ContainerInput type) {
+        mc.gameMode.handleContainerInput(containerId, slot, button, type, p);
     }
 
     public static void sendChat(LocalPlayer p, String text) {
@@ -62,7 +64,7 @@ public final class Compat {
     }
 
     public static void openInventory(Minecraft mc, LocalPlayer p) {
-        mc.setScreen(new InventoryScreen(p));
+        mc.gui.setScreen(new InventoryScreen(p));
     }
 
     // ---- ajoutés pour le contrôle direct (sans touches clavier) ----
@@ -84,7 +86,7 @@ public final class Compat {
 
     /** true si l'écran ouvert est un inventaire/coffre/table (pas le menu Échap, pas le chat). */
     public static boolean isContainerScreen(Minecraft mc) {
-        return mc.screen instanceof AbstractContainerScreen<?>;
+        return mc.gui.screen() instanceof AbstractContainerScreen<?>;
     }
 
     /** Ferme l'écran seulement si c'est un conteneur : on ne ferme JAMAIS le menu Échap de l'humain. */
@@ -94,5 +96,10 @@ public final class Compat {
 
     public static boolean isFood(ItemStack s) {
         return s.has(DataComponents.FOOD);
+    }
+
+    /** Écran actuellement ouvert (null = aucun). En 26.x : mc.gui.screen() (le champ mc.screen n'existe plus). */
+    public static Screen screen(Minecraft mc) {
+        return mc.gui.screen();
     }
 }

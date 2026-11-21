@@ -10,7 +10,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -192,7 +192,7 @@ public final class Actions {
             int idx = c.findItem(item);
             if (idx < 0) return fail("'" + item + "' not in inventory");
             LocalPlayer p = c.player();
-            Compat.click(c.mc, p, p.inventoryMenu.containerId, Controller.menuSlot(idx), all ? 1 : 0, ClickType.THROW);
+            Compat.click(c.mc, p, p.inventoryMenu.containerId, Controller.menuSlot(idx), all ? 1 : 0, ContainerInput.THROW);
             return Status.DONE;
         }
         public String describe() { return "drop " + item; }
@@ -217,13 +217,13 @@ public final class Actions {
         public Status tick(Controller c) {
             LocalPlayer p = c.player();
             if (slot < 0 || slot >= p.containerMenu.slots.size()) return fail("invalid slot " + slot);
-            ClickType type;
+            ContainerInput type;
             switch (mode.toLowerCase(Locale.ROOT)) {
-                case "quick_move": type = ClickType.QUICK_MOVE; break;
-                case "swap": type = ClickType.SWAP; break;
-                case "throw": type = ClickType.THROW; break;
-                case "pickup_all": type = ClickType.PICKUP_ALL; break;
-                case "pickup": type = ClickType.PICKUP; break;
+                case "quick_move": type = ContainerInput.QUICK_MOVE; break;
+                case "swap": type = ContainerInput.SWAP; break;
+                case "throw": type = ContainerInput.THROW; break;
+                case "pickup_all": type = ContainerInput.PICKUP_ALL; break;
+                case "pickup": type = ContainerInput.PICKUP; break;
                 default: return fail("unknown mode " + mode);
             }
             Compat.click(c.mc, p, p.containerMenu.containerId, slot, button, type);
@@ -620,7 +620,7 @@ public final class Actions {
             return n;
         }
 
-        private void click(Controller c, int slot, int button, ClickType t) {
+        private void click(Controller c, int slot, int button, ContainerInput t) {
             Compat.click(c.mc, c.player(), menu.containerId, slot, button, t);
         }
 
@@ -637,20 +637,20 @@ public final class Actions {
                     String want = cellItem();
                     src = findSource(want);
                     if (src < 0) return fail("missing ingredient '" + want + "' in inventory");
-                    click(c, src, 0, ClickType.PICKUP);
+                    click(c, src, 0, ContainerInput.PICKUP);
                     phase = 1;
                     return Status.RUNNING;
                 }
                 case 1: {
                     ItemStack carried = menu.getCarried();
                     if (placed < count && !carried.isEmpty()) {
-                        click(c, gridSlot(), 1, ClickType.PICKUP);   // clic droit = pose UN objet
+                        click(c, gridSlot(), 1, ContainerInput.PICKUP);   // clic droit = pose UN objet
                         placed++;
                     } else phase = 2;
                     return Status.RUNNING;
                 }
                 case 2: {
-                    if (!menu.getCarried().isEmpty()) click(c, src, 0, ClickType.PICKUP); // on repose le reste
+                    if (!menu.getCarried().isEmpty()) click(c, src, 0, ContainerInput.PICKUP); // on repose le reste
                     if (placed < count) { phase = 0; return Status.RUNNING; } // il en faut encore : autre pile
                     placed = 0; col++; phase = 0;
                     return Status.RUNNING;
@@ -661,7 +661,7 @@ public final class Actions {
                     return Status.RUNNING;
                 }
                 case 4: {
-                    click(c, 0, 0, ClickType.QUICK_MOVE);            // shift-clic sur le résultat : fabrique "count" fois
+                    click(c, 0, 0, ContainerInput.QUICK_MOVE);            // shift-clic sur le résultat : fabrique "count" fois
                     phase = 5; wait = 0;
                     return Status.RUNNING;
                 }
@@ -692,14 +692,14 @@ public final class Actions {
         @Override public void stop(Controller c) {
             LocalPlayer p = c.player();
             if (menu == null || p == null) return;
-            if (!menu.getCarried().isEmpty() && src >= 0) click(c, src, 0, ClickType.PICKUP);
+            if (!menu.getCarried().isEmpty() && src >= 0) click(c, src, 0, ContainerInput.PICKUP);
             if (!menu.getCarried().isEmpty()) {           // la case d'origine est prise : n'importe quelle case libre
                 for (int i = invFrom; i <= invTo && !menu.getCarried().isEmpty(); i++)
-                    if (menu.getSlot(i).getItem().isEmpty()) click(c, i, 0, ClickType.PICKUP);
+                    if (menu.getSlot(i).getItem().isEmpty()) click(c, i, 0, ContainerInput.PICKUP);
             }
             int gridEnd = width == 3 ? 9 : 4;
             for (int i = 1; i <= gridEnd; i++)
-                if (menu.getSlot(i).hasItem()) click(c, i, 0, ClickType.QUICK_MOVE);
+                if (menu.getSlot(i).hasItem()) click(c, i, 0, ContainerInput.QUICK_MOVE);
         }
 
         public String describe() { return "craft " + java.util.Arrays.deepToString(grid) + " x" + count; }

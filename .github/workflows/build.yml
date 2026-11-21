@@ -81,6 +81,11 @@ jobs:
           echo "=== ItemStack has/getDestroySpeed/isDamageable"; J net.minecraft.world.item.ItemStack | grep -E " has\(|getDestroySpeed|isDamageableItem|getMaxDamage|getDamageValue"
           echo "=== DataComponents FOOD"; J net.minecraft.core.component.DataComponents | grep -E " FOOD"
           echo "=== Options keys"; J net.minecraft.client.Options | grep -E "keyUse|keyShift"
+          echo "=== LivingEntity swing variants"; J net.minecraft.world.entity.LivingEntity | grep -E "swing"
+          echo "=== Minecraft pause fields"; J net.minecraft.client.Minecraft | grep -iE "pause"
+          echo "=== Minecraft.isPaused bytecode"; javap -cp "$JAR" -p -c net.minecraft.client.Minecraft | grep -A25 "public boolean isPaused()"
+          echo "=== callers of Screen.isPauseScreen"; for c in net/minecraft/client/Minecraft net/minecraft/client/gui/Gui net/minecraft/client/gui/screens/Screen; do echo "-- $c"; javap -cp "$JAR" -p -c "$c" | grep -B8 "isPauseScreen" | grep -E "^  [a-z].*\(|isPauseScreen" | head -20; done
+          echo "=== Screen.isPauseScreen overridden in"; for f in $(unzip -l "$JAR" | awk '{print $4}' | grep 'net/minecraft/client/gui/screens/.*Screen.class'); do c=${f%.class}; c=${c//\//.}; javap -cp "$JAR" -p "$c" 2>/dev/null | grep -q "isPauseScreen" && echo $c; done | head -30
           echo "=== ClientCommands/ClientReceiveMessageEvents"; unzip -l $(find ~/.gradle -name 'fabric-command-api-v2*.jar' | head -1) 2>/dev/null | grep -i ClientCommand | head -3
           echo "=== Player attack strength"; J net.minecraft.world.entity.player.Player | grep -E "getAttackStrengthScale|getFoodData"
           echo "=== Entity getEyePosition/blockPosition/getDirection"; J net.minecraft.world.entity.Entity | grep -E "getEyePosition|getDirection|swing"
