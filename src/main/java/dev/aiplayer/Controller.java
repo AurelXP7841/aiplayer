@@ -270,11 +270,12 @@ public class Controller {
         // Tout est protégé : une exception ici ne doit JAMAIS laisser "thinking = true" ni rester silencieuse.
         try {
             String input = buildInput();
-            String sys = Prompt.SYSTEM + (Config.INSTANCE.extraSystemPrompt.isBlank() ? "" : "\n" + Config.INSTANCE.extraSystemPrompt);
+            String sys = (Config.INSTANCE.compactPrompt ? Prompt.COMPACT : Prompt.SYSTEM) + (Config.INSTANCE.extraSystemPrompt.isBlank() ? "" : "\n" + Config.INSTANCE.extraSystemPrompt);
             results.clear();
             final int gen = generation;
             dump("last_request.txt", "=== SYSTEM ===\n" + sys + "\n\n=== INPUT ===\n" + input);
-            info("thinking... (request sent to " + Config.INSTANCE.model + ", " + input.length() + " chars)");
+            info("thinking... (request sent to " + Config.INSTANCE.model + ", " + (sys.length() + input.length()) + " chars"
+                    + (Config.INSTANCE.compactPrompt ? ", compact prompt" : "") + ")");
             requestStartMs = System.currentTimeMillis();
             thinking = true;
             LlmClient.chat(sys, input).whenComplete((reply, err) -> mc.execute(() -> {

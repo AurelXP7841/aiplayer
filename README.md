@@ -25,13 +25,17 @@ et le clavier de l'humain n'a plus d'effet sur le perso tant que l'IA est ON.
 puis `<` `>` pour parcourir ceux de LM Studio), **timeout en secondes (0 = illimité)**, température, max tokens, rayon de scan,
 lignes de chat, actions par plan, prompt supplémentaire, **Thinking** (OFF par défaut ; `default` = non envoyé, ou low/medium/high/on),
 et les interrupteurs (pensées, verbose, errance si l'IA ne répond pas, tourner dans le menu Échap, attaquer les joueurs).
+**Si l'IA est trop lente** (prompt processing qui dure, timeout) : bouton **Light preset** (prompt compact, rayon de scan 16, 15 types de blocs,
+10 entités) ou réglage à la main : `compactPrompt` (prompt système ~4 400 caractères au lieu de ~12 500 : moins de tokens, mais un 12B suit un peu
+moins bien les consignes), `scanRadius` (le scan des blocs coûte (2r+1)³ lectures sur le thread du jeu : le rayon est le plus gros levier),
+`maxBlockTypes` (45 par défaut) et `maxEntities` (30 par défaut). Le message gris « request sent… N chars » donne la taille réelle envoyée.
 **Save** écrit `config/aiplayer.json`, **Reset to defaults** recharge le preset par défaut (= les valeurs initiales de `Config.java`),
 **Cancel** ferme sans rien changer. Le schéma (`http`/`https`) et le chemin de l'URL (`/api/v1/chat`) ne sont pas modifiés par l'écran.
 
 Config (`aiplayer.json`) : `url`, `model`, `historySize`, `scanRadius`, `requestTimeoutSeconds` (**0 = attend sans limite** ; sinon
 « échec » au bout de N secondes), `maxActionsPerPlan`, `showThoughts`, `allowAttackPlayers`, `keepRunningInPause`,
 `temperature` (0.2-0.5 conseillé pour un 12B, -1 = non envoyé), `extraSystemPrompt`, `maxOutputTokens`, `reasoning` (**`"off"` par défaut**
-= thinking coupé ; `""` = non envoyé, utile si LM Studio refuse le réglage pour ton modèle), `fallbackWander`, `verbose`, `configVersion`.
+= thinking coupé ; `""` = non envoyé, utile si LM Studio refuse le réglage pour ton modèle), `fallbackWander`, `verbose`, `compactPrompt`, `maxBlockTypes`, `maxEntities`, `configVersion`.
 Les anciens `aiplayer.json` (sans `configVersion` ou < 2) passent automatiquement `reasoning` à `"off"` au premier chargement.
 
 ## 2. Build
@@ -68,7 +72,7 @@ Boucle : **perception -> LLM -> JSON -> file d'actions -> exécution tick par ti
 | `Actions.java` | Parseur JSON -> `Action` + toutes les actions. |
 | `MoveAction.java` + `Pathfinder.java` | Déplacement A* (saut 1 bloc, chute ≤3, évite lave/feu). |
 | `Perception.java` | Monde -> texte compact (STATUS, INVENTORY, OPEN SCREEN, ENTITIES, **HINTS**, MAP, BLOCKS). |
-| `Prompt.java` | Prompt système. **Source de vérité de ce que l'IA sait faire.** |
+| `Prompt.java` | Prompt système (`SYSTEM`) et version courte (`COMPACT`, option `compactPrompt`). **Source de vérité de ce que l'IA sait faire : toute nouvelle action doit être documentée dans les DEUX.** |
 | `LlmClient.java` | HTTP LM Studio (`POST /api/v1/chat {model, system_prompt, input}`), extraction du JSON. |
 | `Config.java` | `config/aiplayer.json` ; les valeurs initiales des champs = preset par défaut (`Config.defaults()`). |
 | `SettingsScreen.java` | Écran de réglages (widgets standards, sans `render()`). Ouvert par `/ai settings` ou `PauseMenuButton`. |
@@ -181,3 +185,4 @@ Si le JSON est mal formé : baisser `temperature` (0.2-0.4) ; le mod tolère dé
 - v1.1 (suite) : écran de réglages (`/ai settings` + bouton du menu Échap) ; `Config.java`/`LlmClient.java` restaurés (supprimés par erreur de `main`) ;
   thinking coupé par défaut (`reasoning="off"`, migré dans les anciennes configs) ; `requestTimeoutSeconds=0` = pas de timeout ;
   message d'erreur explicite quand le timeout est atteint. Compile OK en CI sur 26.3, **non testé en jeu**.
+- v1.1 (suite 2) : mode « prompt compact », limites réglables `maxBlockTypes` / `maxEntities`, bouton « Light preset » dans l'écran de réglages.

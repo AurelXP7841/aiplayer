@@ -23,7 +23,7 @@ public class SettingsScreen extends Screen {
 
     private final Screen parent;
 
-    private EditBox host, port, model, timeout, temperature, maxTokens, scanRadius, history, maxActions, extra;
+    private EditBox host, port, model, timeout, temperature, maxTokens, scanRadius, history, maxActions, extra, blockTypes, entities;
     private StringWidget statusWidget;
 
     // morceaux de l'URL qu'on ne modifie pas dans l'écran (http/https et chemin /api/v1/chat)
@@ -35,9 +35,11 @@ public class SettingsScreen extends Screen {
     private final boolean[] fallbackWander = new boolean[1];
     private final boolean[] keepRunning = new boolean[1];
     private final boolean[] attackPlayers = new boolean[1];
+    private final boolean[] compactPrompt = new boolean[1];
+    private int eh = 18; // hauteur des champs de texte (réduite sur les petits écrans)
 
     // valeurs affichées dans les champs : sert à les garder si la fenêtre est redimensionnée (init() est rappelé)
-    private final String[] texts = new String[10];
+    private final String[] texts = new String[12];
     private String statusText = "";
 
     private List<String> models = new ArrayList<>();
@@ -63,12 +65,15 @@ public class SettingsScreen extends Screen {
         texts[7] = String.valueOf(c.historySize);
         texts[8] = String.valueOf(c.maxActionsPerPlan);
         texts[9] = c.extraSystemPrompt == null ? "" : c.extraSystemPrompt;
+        texts[10] = String.valueOf(c.maxBlockTypes);
+        texts[11] = String.valueOf(c.maxEntities);
         reasoning = c.reasoning == null ? "" : c.reasoning;
         showThoughts[0] = c.showThoughts;
         verbose[0] = c.verbose;
         fallbackWander[0] = c.fallbackWander;
         keepRunning[0] = c.keepRunningInPause;
         attackPlayers[0] = c.allowAttackPlayers;
+        compactPrompt[0] = c.compactPrompt;
     }
 
     /** "http://localhost:1234/api/v1/chat" -> {scheme, host, port, path}. */
@@ -87,7 +92,7 @@ public class SettingsScreen extends Screen {
 
     /** Relit les champs avant un init() (redimensionnement) pour ne pas perdre ce que l'humain a tapé. */
     private void remember() {
-        EditBox[] boxes = {host, port, model, timeout, temperature, maxTokens, scanRadius, history, maxActions, extra};
+        EditBox[] boxes = {host, port, model, timeout, temperature, maxTokens, scanRadius, history, maxActions, extra, blockTypes, entities};
         for (int i = 0; i < boxes.length; i++) if (boxes[i] != null) texts[i] = boxes[i].getValue();
     }
 
@@ -96,8 +101,10 @@ public class SettingsScreen extends Screen {
         remember();
         int w = 340, left = this.width / 2 - w / 2;
         int fx = left + 110, fw = w - 110;                 // colonne des champs (lignes pleine largeur)
-        int rowH = this.height < 330 ? 20 : 22;
-        int total = 12 + rowH * 11 + 12;
+        int rowH = this.height >= 360 ? 22 : this.height >= 300 ? 20 : 18;
+        int bh = Math.min(20, rowH - 1);   // hauteur des boutons
+        eh = Math.min(18, rowH - 1);        // hauteur des champs
+        int total = 14 + rowH * 13 + 12;
         int y = Math.max(4, (this.height - total) / 2);
 
         // titre (le widget fait toute la largeur : le texte est centré par défaut)
@@ -114,9 +121,9 @@ public class SettingsScreen extends Screen {
         label(left, y, "AI model name");
         model = box(fx, y, fw - 44, "Model", texts[2], 200);
         addRenderableWidget(Button.builder(Component.literal("<"), b -> cycleModel(-1))
-                .bounds(fx + fw - 42, y - 1, 20, 20).build());
+                .bounds(fx + fw - 42, y - 1, 20, bh).build());
         addRenderableWidget(Button.builder(Component.literal(">"), b -> cycleModel(1))
-                .bounds(fx + fw - 20, y - 1, 20, 20).build());
+                .bounds(fx + fw - 20, y - 1, 20, bh).build());
         y += rowH;
 
         // timeout : 0 = illimité
@@ -142,7 +149,13 @@ public class SettingsScreen extends Screen {
         label(left, y, "Actions/plan");
         maxActions = box(left + 84, y, 80, "Actions per plan", texts[8], 3);
         addRenderableWidget(Button.builder(Component.literal("Fetch models"), b -> fetchModels())
-                .bounds(c2, y - 1, 168, 20).build());
+                .bounds(c2, y - 1, 168, bh).build());
+        y += rowH;
+
+        label(left, y, "Block types");
+        blockTypes = box(left + 84, y, 80, "Block types listed", texts[10], 3);
+        label(c2, y, "Entities");
+        entities = box(c2 + 84, y, 80, "Entities listed", texts[11], 3);
         y += rowH;
 
         label(left, y, "Extra prompt");
@@ -156,7 +169,7 @@ public class SettingsScreen extends Screen {
             for (int k = 0; k < REASONING.length; k++) if (REASONING[k].equals(reasoning)) i = k;
             reasoning = REASONING[(i + 1) % REASONING.length];
             b.setMessage(Component.literal(reasoningLabel()));
-        }).bounds(left, y, bw, 20).build());
+        }).bounds(left, y, bw, bh).build());
         toggle(left + w / 2 + 2, y, bw, "Show thoughts", showThoughts);
         y += rowH;
         toggle(left, y, bw, "Verbose chat", verbose);
@@ -165,14 +178,18 @@ public class SettingsScreen extends Screen {
         toggle(left, y, bw, "Run in Esc menu", keepRunning);
         toggle(left + w / 2 + 2, y, bw, "Attack players", attackPlayers);
         y += rowH;
+        toggle(left, y, bw, "Compact prompt", compactPrompt);
+        addRenderableWidget(Button.builder(Component.literal("Light preset"), b -> lightPreset())
+                .bounds(left + w / 2 + 2, y, bw, bh).build());
+        y += rowH;
 
         int b3 = (w - 8) / 3;
         addRenderableWidget(Button.builder(Component.literal("Save"), b -> save())
-                .bounds(left, y, b3, 20).build());
+                .bounds(left, y, b3, bh).build());
         addRenderableWidget(Button.builder(Component.literal("Reset to defaults"), b -> resetDefaults())
-                .bounds(left + b3 + 4, y, b3, 20).build());
+                .bounds(left + b3 + 4, y, b3, bh).build());
         addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose())
-                .bounds(left + 2 * (b3 + 4), y, b3, 20).build());
+                .bounds(left + 2 * (b3 + 4), y, b3, bh).build());
         y += rowH;
 
         // ligne d'état (modèles trouvés, erreurs de saisie...)
@@ -188,7 +205,7 @@ public class SettingsScreen extends Screen {
     }
 
     private EditBox box(int x, int y, int w, String name, String value, int maxLen) {
-        EditBox e = new EditBox(this.font, x, y, w, 18, Component.literal(name));
+        EditBox e = new EditBox(this.font, x, y, w, eh, Component.literal(name));
         e.setMaxLength(maxLen);
         e.setValue(value);
         addRenderableWidget(e);
@@ -199,7 +216,7 @@ public class SettingsScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal(toggleLabel(name, ref[0])), b -> {
             ref[0] = !ref[0];
             b.setMessage(Component.literal(toggleLabel(name, ref[0])));
-        }).bounds(x, y, w, 20).build());
+        }).bounds(x, y, w, Math.min(20, eh + 1)).build());
     }
 
     private static String toggleLabel(String name, boolean on) {
@@ -251,8 +268,24 @@ public class SettingsScreen extends Screen {
         load(Config.defaults());
         statusText = "Defaults loaded - press Save to keep them.";
         // init() relit les anciens champs (remember) : on les oublie pour qu'il reparte des valeurs par défaut chargées
-        host = port = model = timeout = temperature = maxTokens = scanRadius = history = maxActions = extra = null;
+        forgetBoxes();
         rebuildWidgets(); // reconstruit l'écran à partir de l'état chargé
+    }
+
+    private void forgetBoxes() {
+        host = port = model = timeout = temperature = maxTokens = scanRadius = history = maxActions = extra = blockTypes = entities = null;
+    }
+
+    /** Réglages "légers" en un clic : prompt compact, rayon 16, 15 types de blocs, 10 entités. Le reste est conservé. */
+    private void lightPreset() {
+        remember(); // garde ce que l'humain a déjà tapé dans les autres champs
+        texts[6] = "16";   // scan radius
+        texts[10] = "15";  // block types
+        texts[11] = "10";  // entities
+        compactPrompt[0] = true;
+        statusText = "Light preset loaded - press Save to keep it.";
+        forgetBoxes();
+        rebuildWidgets();
     }
 
     private static int parseInt(EditBox e, int def, int min, int max) {
@@ -305,6 +338,9 @@ public class SettingsScreen extends Screen {
         c.scanRadius = parseInt(scanRadius, c.scanRadius, 4, 64);
         c.historySize = parseInt(history, c.historySize, 1, 50);
         c.maxActionsPerPlan = parseInt(maxActions, c.maxActionsPerPlan, 1, 20);
+        c.maxBlockTypes = parseInt(blockTypes, c.maxBlockTypes, 1, 200);
+        c.maxEntities = parseInt(entities, c.maxEntities, 1, 100);
+        c.compactPrompt = compactPrompt[0];
         c.extraSystemPrompt = extra.getValue();
         c.reasoning = reasoning;
         c.showThoughts = showThoughts[0];
@@ -314,9 +350,10 @@ public class SettingsScreen extends Screen {
         c.allowAttackPlayers = attackPlayers[0];
         Config.save();
         Controller.INSTANCE.localMsg(String.format(Locale.ROOT,
-                "§a[AI] settings saved: %s, model %s, thinking %s, timeout %s",
+                "§a[AI] settings saved: %s, model %s, thinking %s, timeout %s, %s prompt",
                 c.url, c.model, c.reasoning.isEmpty() ? "default" : c.reasoning,
-                c.requestTimeoutSeconds == 0 ? "unlimited" : c.requestTimeoutSeconds + "s"));
+                c.requestTimeoutSeconds == 0 ? "unlimited" : c.requestTimeoutSeconds + "s",
+                c.compactPrompt ? "compact" : "full"));
         onClose();
     }
 

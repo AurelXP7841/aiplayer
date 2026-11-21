@@ -103,7 +103,7 @@ public final class Perception {
         sb.append("=== NEARBY ENTITIES === (id type distance pos extra)\n");
         int n = 0;
         for (Entity e : ents) {
-            if (n++ >= 30) break;
+            if (n++ >= Math.max(1, Config.INSTANCE.maxEntities)) break;
             String type = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).getPath();
             StringBuilder extra = new StringBuilder();
             if (e instanceof Player pl) extra.append("PLAYER name=").append(pl.getName().getString());
@@ -261,7 +261,7 @@ public final class Perception {
         special.sort(Comparator.comparingInt(e -> e.getValue().near.get(0)[0]));
         int shown = 0;
         for (Map.Entry<String, Agg> e : special) {
-            if (shown++ >= 45) break;
+            if (shown++ >= Math.max(1, Config.INSTANCE.maxBlockTypes)) break;
             sb.append(e.getKey()).append(" x").append(e.getValue().count).append(':');
             for (int[] q : e.getValue().near)
                 sb.append(" (").append(q[1]).append(',').append(q[2]).append(',').append(q[3]).append(')').append(q[4] == 1 ? "*" : "");

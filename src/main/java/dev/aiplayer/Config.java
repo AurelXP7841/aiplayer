@@ -33,6 +33,9 @@ public class Config {
     public int maxOutputTokens = 1500;    // limite de génération envoyée à LM Studio. 0 = non envoyé
     public String reasoning = "off";      // thinking du modèle : "off" (défaut) = coupé. "" = non envoyé (LM Studio refuse si le modèle ne gère pas ce réglage)
     public boolean fallbackWander = true; // si le LLM échoue/timeout : le bot se promène au lieu de rester figé
+    public boolean compactPrompt = false; // true : prompt système court (~1/3 des tokens) -> traitement plus rapide, mais un petit modèle suit un peu moins bien
+    public int maxBlockTypes = 45;        // nb max de types de blocs listés dans BLOCKS (moins = prompt plus court)
+    public int maxEntities = 30;          // nb max d'entités listées dans NEARBY ENTITIES
 
     public static Config INSTANCE = new Config();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
