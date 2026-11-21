@@ -12,6 +12,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 
@@ -103,8 +104,8 @@ public final class Compat {
         return mc.gui.screen();
     }
 
-    /** Animation du bras (cosmétique). En 26.3 swing() demande une SwingAnimation : voir l'historique dans le README. */
+    /** Animation du bras (cosmétique). 26.3 : swing(main, SwingAnimation, boolean). */
     private static void swing(LocalPlayer p) {
-        // TODO 26.3 : p.swing(InteractionHand.MAIN_HAND, <SwingAnimation>, false) -- purement visuel, le serveur n'en dépend pas.
+        p.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT, false);
     }
 }
