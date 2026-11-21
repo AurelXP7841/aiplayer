@@ -320,7 +320,10 @@ public class Controller {
         if (err != null) {
             Throwable t = err.getCause() != null ? err.getCause() : err;
             llmFailures++;
-            localMsg(String.format(Locale.ROOT, "§c[AI] LLM error after %.0fs: ", ms / 1000.0) + t);
+            String why = t instanceof java.net.http.HttpTimeoutException
+                    ? "no answer within " + Config.INSTANCE.requestTimeoutSeconds + "s (timeout). Raise it in /ai settings, or set 0 for unlimited."
+                    : t.toString();
+            localMsg(String.format(Locale.ROOT, "§c[AI] LLM error after %.0fs: ", ms / 1000.0) + why);
             // backoff : 5s, 10s, 20s, 40s, puis 60s max (évite d'empiler les requêtes sur un LM Studio saturé)
             cooldown = Math.min(100 << Math.min(llmFailures - 1, 4), 1200);
             if (Config.INSTANCE.fallbackWander) wander();

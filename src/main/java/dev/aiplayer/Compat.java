@@ -95,6 +95,11 @@ public final class Compat {
         if (isContainerScreen(mc)) p.closeContainer();
     }
 
+    /** Ouvre un écran (null = retour au jeu). En 26.x : mc.gui.setScreen. */
+    public static void openScreen(Minecraft mc, Screen s) {
+        mc.gui.setScreen(s);
+    }
+
     public static boolean isFood(ItemStack s) {
         return s.has(DataComponents.FOOD);
     }

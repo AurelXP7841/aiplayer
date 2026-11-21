@@ -8,11 +8,21 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 
 public class AiPlayerMod implements ClientModInitializer {
+    /** /ai settings : l'écran est ouvert au tick suivant, sinon la fermeture du chat l'écraserait aussitôt. */
+    private static volatile boolean openSettings;
+
     @Override
     public void onInitializeClient() {
         Config.load();
+        PauseMenuButton.register();
 
-        ClientTickEvents.START_CLIENT_TICK.register(mc -> Controller.INSTANCE.tick());
+        ClientTickEvents.START_CLIENT_TICK.register(mc -> {
+            if (openSettings && mc.player != null) {
+                openSettings = false;
+                Compat.openScreen(mc, new SettingsScreen(Compat.screen(mc)));
+            }
+            Controller.INSTANCE.tick();
+        });
 
         // messages de joueurs et messages système (affichés dans le chat)
         ClientReceiveMessageEvents.CHAT.register((msg, signed, sender, params, ts) ->
@@ -36,6 +46,14 @@ public class AiPlayerMod implements ClientModInitializer {
                         .then(ClientCommands.literal("reload").executes(ctx -> {
                             Config.load();
                             Controller.INSTANCE.localMsg("§a[AI] config reloaded (" + Config.INSTANCE.model + ")");
+                            return 1;
+                        }))
+                        .then(ClientCommands.literal("settings").executes(ctx -> {
+                            openSettings = true;
+                            return 1;
+                        }))
+                        .then(ClientCommands.literal("config").executes(ctx -> {
+                            openSettings = true;
                             return 1;
                         }))
                         .then(ClientCommands.literal("status").executes(ctx -> {
