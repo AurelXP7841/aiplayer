@@ -45,6 +45,7 @@ public class Controller {
     private String memory = "", lastPlan = "";
     private boolean thinking, interrupt;
     private int cooldown, generation, respawnTimer, interruptCooldown;
+    private int llmFailures; // échecs LLM consécutifs (pour le backoff)
     private float lastHealth = 20f;
     private boolean useKeyHeld;
 
@@ -60,6 +61,7 @@ public class Controller {
         generation++;
         enabled = on;
         thinking = false;
+        llmFailures = 0;
         stopAll();
         releaseKeys();
         sneak = false;
@@ -317,10 +319,14 @@ public class Controller {
         if (err == null) info(String.format(Locale.ROOT, "reply received in %.1fs (%d chars)", ms / 1000.0, reply.length()));
         if (err != null) {
             Throwable t = err.getCause() != null ? err.getCause() : err;
-            localMsg("§c[AI] LLM error: " + t.getMessage());
-            cooldown = 100;
+            llmFailures++;
+            localMsg(String.format(Locale.ROOT, "§c[AI] LLM error after %.0fs: ", ms / 1000.0) + t);
+            // backoff : 5s, 10s, 20s, 40s, puis 60s max (évite d'empiler les requêtes sur un LM Studio saturé)
+            cooldown = Math.min(100 << Math.min(llmFailures - 1, 4), 1200);
+            if (Config.INSTANCE.fallbackWander) wander();
             return;
         }
+        llmFailures = 0;
         try {
             JsonObject o = LlmClient.extractJson(reply);
             String thought = o.has("thought") ? o.get("thought").getAsString() : "";
@@ -359,6 +365,24 @@ public class Controller {
             localMsg("§c[AI] unparsable reply: " + ex.getMessage());
             cooldown = 20;
         }
+    }
+
+    /** Plan B quand le LLM ne répond pas : marche vers un point aléatoire proche pour ne pas rester figé. */
+    private void wander() {
+        LocalPlayer p = mc.player;
+        if (p == null || current != null || !queue.isEmpty()) return;
+        double ang = Math.random() * Math.PI * 2;
+        int d = 6 + (int) (Math.random() * 8);
+        JsonObject o = new JsonObject();
+        o.addProperty("type", "move_to");
+        o.addProperty("x", p.getBlockX() + (int) Math.round(Math.cos(ang) * d));
+        o.addProperty("y", p.getBlockY());
+        o.addProperty("z", p.getBlockZ() + (int) Math.round(Math.sin(ang) * d));
+        o.addProperty("range", 2.0);
+        try {
+            queue.add(Actions.parse(o));
+            info("LLM unavailable: wandering");
+        } catch (Exception ignored) {}
     }
 
     // ---------------------------------------------------------------- aides pour les actions

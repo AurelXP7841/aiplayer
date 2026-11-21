@@ -26,6 +26,8 @@ public final class LlmClient {
         body.addProperty("system_prompt", system);
         body.addProperty("input", input);
         if (cfg.temperature >= 0) body.addProperty("temperature", cfg.temperature);
+        if (cfg.maxOutputTokens > 0) body.addProperty("max_output_tokens", cfg.maxOutputTokens);
+        if (cfg.reasoning != null && !cfg.reasoning.isBlank()) body.addProperty("reasoning", cfg.reasoning);
 
         HttpRequest req = HttpRequest.newBuilder(URI.create(cfg.url))
                 .timeout(Duration.ofSeconds(cfg.requestTimeoutSeconds))

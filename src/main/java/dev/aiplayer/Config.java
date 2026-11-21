@@ -21,6 +21,9 @@ public class Config {
     public boolean keepRunningInPause = true; // solo : le menu Échap ne gèle plus le monde tant que l'IA est ON
     public double temperature = -1;       // >= 0 : envoyé à LM Studio (0.2-0.5 conseillé pour un 12B). -1 = non envoyé
     public String extraSystemPrompt = ""; // ex: "Tu t'appelles Bob. Parle français."
+    public int maxOutputTokens = 1500;    // limite de génération envoyée à LM Studio. 0 = non envoyé
+    public String reasoning = "";         // "off" coupe le thinking. "" = non envoyé (LM Studio renvoie une erreur si le modèle ne gère pas ce réglage)
+    public boolean fallbackWander = true; // si le LLM échoue/timeout : le bot se promène au lieu de rester figé
 
     public static Config INSTANCE = new Config();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
