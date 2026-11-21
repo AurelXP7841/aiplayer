@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "aiplayer",
+  "version": "${version}",
+  "name": "AI Player",
+  "description": "Laisse une IA locale (LM Studio) contrôler ton joueur.",
+  "environment": "client",
+  "entrypoints": { "client": ["dev.aiplayer.AiPlayerMod"] },
+  "mixins": ["aiplayer.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": ">=26.1",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

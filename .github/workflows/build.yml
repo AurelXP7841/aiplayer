@@ -1,0 +1,69 @@
+name: Build mod
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
+      # Le repo ne contient pas le wrapper Gradle ni les versions exactes (loader/loom/fabric-api).
+      # On les prend dans le template officiel Fabric, branche de la version de MC voulue.
+      - name: Prepare project from the Fabric template
+        run: |
+          set -euo pipefail
+          MC=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)
+          echo "Target Minecraft: $MC"
+          BR=$(git ls-remote --heads https://github.com/FabricMC/fabric-example-mod | sed 's#.*refs/heads/##' | grep -Fx "$MC" || true)
+          if [ -z "$BR" ]; then
+            BR=$(git ls-remote --heads https://github.com/FabricMC/fabric-example-mod | sed 's#.*refs/heads/##' | grep -E '^[0-9]+\.[0-9]+' | sort -V | tail -1)
+            echo "::warning::No template branch '$MC', using '$BR'"
+          fi
+          echo "Template branch: $BR"
+          git clone --depth 1 --branch "$BR" https://github.com/FabricMC/fabric-example-mod _tpl
+          rm -rf _build && mkdir _build
+          cp -r _tpl/gradle _tpl/gradlew _build/
+          cp -r src build.gradle settings.gradle _build/
+          # versions du template, sauf nos propriétés
+          for k in loader_version loom_version fabric_api_version minecraft_version; do
+            v=$(grep "^$k=" _tpl/gradle.properties | cut -d= -f2)
+            echo "$k=$v"
+          done
+          cp gradle.properties _build/gradle.properties
+          for k in loader_version loom_version fabric_api_version; do
+            v=$(grep "^$k=" _tpl/gradle.properties | cut -d= -f2)
+            sed -i "s|^$k=.*|$k=$v|" _build/gradle.properties
+          done
+          TPL_MC=$(grep '^minecraft_version=' _tpl/gradle.properties | cut -d= -f2)
+          if [ "$TPL_MC" != "$MC" ]; then echo "::warning::template is for $TPL_MC, mod targets $MC"; fi
+          cat _build/gradle.properties
+
+      - name: Build
+        working-directory: _build
+        run: |
+          chmod +x gradlew
+          ./gradlew build --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aiplayer-jar
+          path: _build/build/libs/aiplayer-*[0-9].jar
+          if-no-files-found: error
+
+      - name: Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" _build/build/libs/aiplayer-*[0-9].jar --generate-notes
