@@ -17,6 +17,7 @@ public class Config {
     public int maxActionsPerPlan = 8;
     public boolean showThoughts = true;   // affiche la "thought" de l'IA dans ton chat local
     public boolean allowAttackPlayers = false;
+    public boolean verbose = true;        // messages de diagnostic gris dans le chat ("thinking...", "reply received..."). Mets false quand tout marche.
     public boolean keepRunningInPause = true; // solo : le menu Échap ne gèle plus le monde tant que l'IA est ON
     public double temperature = -1;       // >= 0 : envoyé à LM Studio (0.2-0.5 conseillé pour un 12B). -1 = non envoyé
     public String extraSystemPrompt = ""; // ex: "Tu t'appelles Bob. Parle français."

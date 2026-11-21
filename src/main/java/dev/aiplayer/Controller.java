@@ -3,6 +3,7 @@ package dev.aiplayer;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -15,6 +16,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Locale;
@@ -110,10 +113,48 @@ public class Controller {
             e.printStackTrace();
             addResult("internal error: " + e);
             stopAll();
+            thinking = false;      // ne jamais rester bloqué en "réfléchit"
+            cooldown = Math.max(cooldown, 100); // et ne pas réessayer 20 fois par seconde
+            localMsg("§c[AI] internal error: " + e + " (details: logs/latest.log)");
         }
     }
 
-    private boolean wasActive;
+    /** /ai ping : teste LM Studio sans rien jouer. Affiche la réponse brute ou l'erreur. */
+    public void ping() {
+        localMsg("§7[AI] ping " + Config.INSTANCE.url + " model=" + Config.INSTANCE.model + " ...");
+        long t0 = System.currentTimeMillis();
+        try {
+            LlmClient.chat("You answer with a JSON object only.", "Reply with exactly {\"ok\":true}").whenComplete((reply, err) -> mc.execute(() -> {
+                double sec = (System.currentTimeMillis() - t0) / 1000.0;
+                if (err != null) {
+                    Throwable t = err.getCause() != null ? err.getCause() : err;
+                    localMsg("§c[AI] ping FAILED: " + t);
+                } else {
+                    String r = reply.replace('\n', ' ');
+                    localMsg(String.format(Locale.ROOT, "§a[AI] ping OK in %.1fs: ", sec) + r.substring(0, Math.min(200, r.length())));
+                }
+            }));
+        } catch (Exception e) {
+            localMsg("§c[AI] ping could not start: " + e);
+        }
+    }
+
+    /** Message de diagnostic dans le chat local (désactivable : verbose=false). */
+    private void info(String s) {
+        if (Config.INSTANCE.verbose) localMsg("§8[AI] " + s);
+    }
+
+    /** Écrit la dernière requête/réponse dans .minecraft/aiplayer-debug/ pour pouvoir les relire/coller. */
+    private void dump(String name, String text) {
+        try {
+            Path dir = FabricLoader.getInstance().getGameDir().resolve("aiplayer-debug");
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve(name), text);
+        } catch (Exception ignored) {}
+    }
+
+    private boolean wasActive, warnedPaused;
+    private long requestStartMs;
 
     private void doTick() {
         LocalPlayer p = mc.player;
@@ -141,9 +182,14 @@ public class Controller {
 
         forward = jump = sprint = use = false;
 
-        // Monde gelé (solo + écran pause alors que le mixin n'a pas pu s'appliquer) : on n'avance pas les actions,
-        // sinon elles expireraient (timeouts) pendant que rien ne bouge.
-        if (Compat.isPaused(mc)) return;
+        // Monde gelé (solo + écran pause alors que le mixin n'a pas pu s'appliquer) : on n'avance pas les actions
+        // (elles expireraient), mais l'IA peut quand même réfléchir : son plan sera prêt à la reprise.
+        if (Compat.isPaused(mc)) {
+            if (!warnedPaused) { warnedPaused = true; info("game is paused (menu open in singleplayer): actions wait, press Esc to resume"); }
+            maybeThink();
+            return;
+        }
+        warnedPaused = false;
 
         float hp = p.getHealth();
         if (hp < lastHealth - 0.01f) {
@@ -219,16 +265,33 @@ public class Controller {
     }
 
     private void think() {
-        String input = buildInput();
-        String sys = Prompt.SYSTEM + (Config.INSTANCE.extraSystemPrompt.isBlank() ? "" : "\n" + Config.INSTANCE.extraSystemPrompt);
-        results.clear();
-        thinking = true;
-        final int gen = generation;
-        LlmClient.chat(sys, input).whenComplete((reply, err) -> mc.execute(() -> {
-            if (gen != generation || !enabled) return;
+        // Tout est protégé : une exception ici ne doit JAMAIS laisser "thinking = true" ni rester silencieuse.
+        try {
+            String input = buildInput();
+            String sys = Prompt.SYSTEM + (Config.INSTANCE.extraSystemPrompt.isBlank() ? "" : "\n" + Config.INSTANCE.extraSystemPrompt);
+            results.clear();
+            final int gen = generation;
+            dump("last_request.txt", "=== SYSTEM ===\n" + sys + "\n\n=== INPUT ===\n" + input);
+            info("thinking... (request sent to " + Config.INSTANCE.model + ", " + input.length() + " chars)");
+            requestStartMs = System.currentTimeMillis();
+            thinking = true;
+            LlmClient.chat(sys, input).whenComplete((reply, err) -> mc.execute(() -> {
+                if (gen != generation || !enabled) return;
+                thinking = false;
+                try {
+                    onResponse(reply, err);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    localMsg("§c[AI] error while handling the reply: " + ex);
+                    cooldown = 100;
+                }
+            }));
+        } catch (Exception ex) {
             thinking = false;
-            onResponse(reply, err);
-        }));
+            ex.printStackTrace();
+            cooldown = 100;
+            localMsg("§c[AI] could not send the request: " + ex);
+        }
     }
 
     private String buildInput() {
@@ -249,6 +312,9 @@ public class Controller {
     private void onResponse(String reply, Throwable err) {
         LocalPlayer p = mc.player;
         if (p == null) return;
+        long ms = System.currentTimeMillis() - requestStartMs;
+        dump("last_reply.txt", err != null ? "ERROR: " + err : reply);
+        if (err == null) info(String.format(Locale.ROOT, "reply received in %.1fs (%d chars)", ms / 1000.0, reply.length()));
         if (err != null) {
             Throwable t = err.getCause() != null ? err.getCause() : err;
             localMsg("§c[AI] LLM error: " + t.getMessage());
@@ -286,7 +352,8 @@ public class Controller {
             }
             lastPlan = plan.toString();
             if (Config.INSTANCE.showThoughts && !thought.isBlank()) localMsg("§7[AI] " + thought);
-            if (queue.isEmpty()) cooldown = 40;
+            if (queue.isEmpty()) { cooldown = 40; info("the AI sent no action (it will think again shortly)"); }
+            else info(queue.size() + " action(s): " + plan);
         } catch (Exception ex) {
             addResult("your last reply was not valid JSON (" + ex.getMessage() + "). Reply with ONE JSON object only.");
             localMsg("§c[AI] unparsable reply: " + ex.getMessage());

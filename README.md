@@ -15,7 +15,7 @@ et le clavier de l'humain n'a plus d'effet sur le perso tant que l'IA est ON.
 1. LM Studio : charge le modèle, démarre le serveur local (port 1234). **Mets le contexte à ≥ 16k tokens** (le prompt
    + la perception font ~5-8k tokens).
 2. Lance le jeu une fois : `config/aiplayer.json` est créé.
-3. En jeu : `/ai on`, `/ai off`, `/ai tell <ordre>`, `/ai status`, `/ai reload`.
+3. En jeu : `/ai on`, `/ai off`, `/ai tell <ordre>`, `/ai status`, `/ai reload`, `/ai ping` (teste LM Studio).
 4. **Astuce** : après `/ai on`, appuie sur **Échap**. Tu peux alors utiliser souris/clavier ailleurs, le perso continue
    (en solo, le mixin empêche le menu Échap de geler le monde ; désactivable avec `keepRunningInPause=false`).
    Ne rouvre pas le jeu avec la souris pendant que l'IA joue : le mouvement de souris tourne la tête du perso.
@@ -120,7 +120,7 @@ Les résultats (done / FAILED: raison) sont renvoyés à l'IA au tour suivant (`
    (Les artefacts/releases Actions peuvent être inaccessibles depuis certains environnements : d'où cette branche.)
 4. Une erreur 429 de Maven Central dans le CI est transitoire : relancer le job.
 
-**Déboguer en jeu** : `/ai status` (état, écran ouvert, pause, action courante) ; `showThoughts=true` affiche la pensée de l'IA dans le chat ;
+**Déboguer en jeu** : avec `verbose=true` (défaut) le chat affiche en gris `thinking...`, `reply received in X s`, la liste d'actions, ou l'erreur ; `/ai ping` teste la connexion ; la dernière requête et réponse brutes sont dans `.minecraft/aiplayer-debug/last_request.txt` et `last_reply.txt` (à coller dans une issue/à une IA). Aussi : `/ai status` (état, écran ouvert, pause, action courante) ; `showThoughts=true` affiche la pensée de l'IA dans le chat ;
 les erreurs internes s'affichent dans le chat (`§c[AI] …`) et dans `logs/latest.log` ; le mod n'envoie jamais de commandes `/` dans le chat serveur.
 Si l'IA ne répond pas : vérifier `url`/`model` dans `config/aiplayer.json`, que LM Studio tourne, et que le contexte du modèle est ≥ 16k.
 Si le JSON est mal formé : baisser `temperature` (0.2-0.4) ; le mod tolère déjà synonymes d'actions et `pos:[x,y,z]`.

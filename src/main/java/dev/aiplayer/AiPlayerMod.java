@@ -42,6 +42,10 @@ public class AiPlayerMod implements ClientModInitializer {
                             Controller.INSTANCE.localMsg("[AI] " + Controller.INSTANCE.status());
                             return 1;
                         }))
+                        .then(ClientCommands.literal("ping").executes(ctx -> {
+                            Controller.INSTANCE.ping();
+                            return 1;
+                        }))
                         .then(ClientCommands.literal("tell")
                                 .then(ClientCommands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
                                     Controller.INSTANCE.onOwnerInstruction(StringArgumentType.getString(ctx, "text"));
