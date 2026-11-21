@@ -8,9 +8,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
@@ -49,6 +51,17 @@ public class Controller {
     private float lastHealth = 20f;
     private boolean useKeyHeld;
 
+    // ---------------------------------------------------------------- modes de combat
+    /** NORMAL = survie (prompt habituel). Les autres REMPLACENT le prompt : voir {@link ModePrompts}. */
+    public enum Mode { NORMAL, DEFEND, KILL, KILL_ALL }
+    public Mode mode = Mode.NORMAL;
+    public String killTarget = "";   // nom du joueur visé (mode KILL)
+    public boolean modeChat;         // "chat" à la fin de la commande : l'IA parle pendant le combat
+    public BlockPos base;            // centre de la base à défendre (mode DEFEND)
+    public BlockPos lastTargetPos;   // dernière position connue de la cible (mode KILL)
+    public long lastTargetMs;
+    private String savedMemory = ""; // notes du mode normal, restaurées par /ai normal
+
     public LocalPlayer player() { return mc.player; }
     public ClientLevel level() { return mc.level; }
     public boolean isEnabled() { return enabled; }
@@ -60,6 +73,7 @@ public class Controller {
     public void setEnabled(boolean on) {
         generation++;
         enabled = on;
+        if (!on) leaveMode();
         thinking = false;
         llmFailures = 0;
         stopAll();
@@ -68,6 +82,62 @@ public class Controller {
         cooldown = 0;
         interrupt = false;
         if (on) { addResult("AI control enabled."); interrupt = true; }
+    }
+
+    private void leaveMode() {
+        if (mode == Mode.NORMAL) return;
+        mode = Mode.NORMAL;
+        memory = savedMemory;
+        killTarget = "";
+        modeChat = false;
+        base = null;
+        lastTargetPos = null;
+    }
+
+    /** /ai defend, /ai kill <joueur|everyone>, /ai normal. Active l'IA si besoin et change toute sa mission. */
+    public void setMode(Mode m, String target, boolean chatOn) {
+        if (!enabled) setEnabled(true);
+        if (m == Mode.NORMAL) {
+            leaveMode();
+        } else {
+            if (mode == Mode.NORMAL) savedMemory = memory; // on garde les notes de survie pour plus tard
+            memory = "";
+            mode = m;
+            killTarget = target == null ? "" : target.strip();
+            modeChat = chatOn;
+            base = m == Mode.DEFEND && mc.player != null ? mc.player.blockPosition() : null;
+            lastTargetPos = null;
+        }
+        generation++;      // une requête partie avec l'ancien prompt sera ignorée à son retour
+        thinking = false;
+        stopAll();
+        lastPlan = "";
+        results.clear();
+        addResult(m == Mode.NORMAL ? "Back to normal survival mode." : "NEW MISSION: " + missionLine());
+        cooldown = 0;
+        interrupt = true;
+        interruptCooldown = 0;
+    }
+
+    /** Les attaques contre un joueur passent par ce filtre (voir Actions.Attack). */
+    public boolean mayAttackPlayer(Player target) {
+        if (Config.INSTANCE.allowAttackPlayers) return true;
+        return mode == Mode.KILL_ALL
+                || (mode == Mode.KILL && target.getName().getString().equalsIgnoreCase(killTarget));
+    }
+
+    /** Résumé d'une ligne de la mission en cours (envoyé à l'IA dans CURRENT MISSION). */
+    public String missionLine() {
+        String s;
+        switch (mode) {
+            case DEFEND -> s = "DEFEND THE BASE" + (base != null ? " at (" + base.getX() + "," + base.getY() + "," + base.getZ() + ")" : "")
+                    + ". Stay there, kill hostile monsters that come close, never mine or explore.";
+            case KILL -> s = "KILL THE PLAYER " + killTarget + ". Nothing else matters.";
+            case KILL_ALL -> s = "KILL EVERYONE. Nothing else matters.";
+            default -> s = "";
+        }
+        if (mode != Mode.NORMAL && modeChat) s += " CHAT MODE: talk in the chat while you fight.";
+        return s;
     }
 
     private void stopAll() {
@@ -101,7 +171,7 @@ public class Controller {
     }
 
     public String status() {
-        return "enabled=" + enabled + " thinking=" + thinking
+        return "enabled=" + enabled + " mode=" + mode + (modeChat ? "+chat" : "") + " thinking=" + thinking
                 + " screen=" + (Compat.screen(mc) == null ? "none" : Compat.screen(mc).getClass().getSimpleName())
                 + " paused=" + Compat.isPaused(mc) + " current=" + (current == null ? "none" : current.describe())
                 + " queued=" + queue.size() + " memory=\"" + memory + "\"";
@@ -270,12 +340,14 @@ public class Controller {
         // Tout est protégé : une exception ici ne doit JAMAIS laisser "thinking = true" ni rester silencieuse.
         try {
             String input = buildInput();
-            String sys = (Config.INSTANCE.compactPrompt ? Prompt.COMPACT : Prompt.SYSTEM) + (Config.INSTANCE.extraSystemPrompt.isBlank() ? "" : "\n" + Config.INSTANCE.extraSystemPrompt);
+            String basePrompt = mode != Mode.NORMAL ? ModePrompts.build(mode, killTarget, modeChat)
+                    : Config.INSTANCE.compactPrompt ? Prompt.COMPACT : Prompt.SYSTEM;
+            String sys = basePrompt + (Config.INSTANCE.extraSystemPrompt.isBlank() ? "" : "\n" + Config.INSTANCE.extraSystemPrompt);
             results.clear();
             final int gen = generation;
             dump("last_request.txt", "=== SYSTEM ===\n" + sys + "\n\n=== INPUT ===\n" + input);
             info("thinking... (request sent to " + Config.INSTANCE.model + ", " + (sys.length() + input.length()) + " chars"
-                    + (Config.INSTANCE.compactPrompt ? ", compact prompt" : "") + ")");
+                    + (mode != Mode.NORMAL ? ", mode " + mode + (modeChat ? "+chat" : "") : Config.INSTANCE.compactPrompt ? ", compact prompt" : "") + ")");
             requestStartMs = System.currentTimeMillis();
             thinking = true;
             LlmClient.chat(sys, input).whenComplete((reply, err) -> mc.execute(() -> {
@@ -299,15 +371,20 @@ public class Controller {
 
     private String buildInput() {
         StringBuilder sb = new StringBuilder();
-        sb.append("=== CHAT HISTORY (last ").append(chat.size()).append(") ===\n");
+        int keep = Math.max(1, Config.INSTANCE.historySize);   // combien de messages on donne à l'IA (config : historySize)
+        int skip = Math.max(0, chat.size() - keep);
+        sb.append("=== CHAT HISTORY (last ").append(chat.size() - skip).append(") ===\n");
         if (chat.isEmpty()) sb.append("(no messages)\n");
-        for (String m : chat) sb.append(m).append('\n');
+        int idx = 0;
+        for (String m : chat) if (idx++ >= skip) sb.append(m).append('\n');
+        if (mode != Mode.NORMAL) sb.append("=== CURRENT MISSION ===\n").append(missionLine()).append('\n');
         sb.append("=== MEMORY ===\n").append(memory.isEmpty() ? "(empty)" : memory).append('\n');
         sb.append("=== YOUR LAST PLAN ===\n").append(lastPlan.isEmpty() ? "(none)" : lastPlan).append('\n');
         sb.append("=== RESULTS OF YOUR LAST ACTIONS ===\n");
         if (results.isEmpty()) sb.append("(none)\n");
         for (String r : results) sb.append(r).append('\n');
         sb.append(Perception.build(this));
+        sb.append(ModeHints.build(this));
         sb.append("\nReply with the JSON object only.");
         return sb.toString();
     }
@@ -327,7 +404,7 @@ public class Controller {
             localMsg(String.format(Locale.ROOT, "§c[AI] LLM error after %.0fs: ", ms / 1000.0) + why);
             // backoff : 5s, 10s, 20s, 40s, puis 60s max (évite d'empiler les requêtes sur un LM Studio saturé)
             cooldown = Math.min(100 << Math.min(llmFailures - 1, 4), 1200);
-            if (Config.INSTANCE.fallbackWander) wander();
+            if (Config.INSTANCE.fallbackWander && mode != Mode.DEFEND) wander();
             return;
         }
         llmFailures = 0;
@@ -353,6 +430,7 @@ public class Controller {
                     if (n++ >= Config.INSTANCE.maxActionsPerPlan) break;
                     try {
                         Action a = Actions.parse(el.getAsJsonObject());
+                        if (mode != Mode.NORMAL && a instanceof Actions.Attack at) a = new ModeAttack(at.id, at.maxTicks);
                         queue.add(a);
                         plan.append(a.describe()).append("; ");
                     } catch (Exception ex) {

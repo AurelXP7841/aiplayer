@@ -37,6 +37,14 @@ public class Config {
     public int maxBlockTypes = 45;        // nb max de types de blocs listés dans BLOCKS (moins = prompt plus court)
     public int maxEntities = 30;          // nb max d'entités listées dans NEARBY ENTITIES
 
+    // ---- modes de combat : /ai defend, /ai kill <joueur>, /ai kill everyone (+ "chat" à la fin de la commande) ----
+    // (le nombre de messages de chat donnés à l'IA est historySize plus haut : 1 = juste le dernier, 100 = beaucoup de contexte)
+    public int defendRadius = 20;         // /ai defend : rayon (blocs) protégé autour du point où tu tapes la commande
+    public String defendPrompt = "";      // consignes du mode defend. "" = texte intégré (ModePrompts). Joker : {RADIUS}
+    public String killPrompt = "";        // consignes du mode kill <joueur>. "" = texte intégré. Joker : {TARGET}
+    public String killAllPrompt = "";     // consignes du mode kill everyone. "" = texte intégré
+    public String chatPrompt = "";        // ajouté quand la commande finit par "chat" (l'IA parle pendant le combat). "" = texte intégré
+
     public static Config INSTANCE = new Config();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
