@@ -5,7 +5,6 @@
   "compatibilityLevel": "JAVA_21",
   "injectors": { "defaultRequire": 0 },
   "client": [
-    "ScreenPauseMixin",
-    "PauseScreenMixin"
+    "ScreenPauseMixin"
   ]
 }

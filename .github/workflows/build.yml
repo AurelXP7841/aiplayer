@@ -81,6 +81,9 @@ jobs:
           echo "=== ItemStack has/getDestroySpeed/isDamageable"; J net.minecraft.world.item.ItemStack | grep -E " has\(|getDestroySpeed|isDamageableItem|getMaxDamage|getDamageValue"
           echo "=== DataComponents FOOD"; J net.minecraft.core.component.DataComponents | grep -E " FOOD"
           echo "=== Options keys"; J net.minecraft.client.Options | grep -E "keyUse|keyShift"
+          echo "=== SwingAnimation"; J net.minecraft.world.item.component.SwingAnimation
+          echo "=== DataComponents SWING"; J net.minecraft.core.component.DataComponents | grep -i swing
+          echo "=== Player/LocalPlayer swing"; J net.minecraft.world.entity.player.Player | grep -i swing; J net.minecraft.client.player.LocalPlayer | grep -i swing
           echo "=== LivingEntity swing variants"; J net.minecraft.world.entity.LivingEntity | grep -E "swing"
           echo "=== Minecraft pause fields"; J net.minecraft.client.Minecraft | grep -iE "pause"
           echo "=== Minecraft.isPaused bytecode"; javap -cp "$JAR" -p -c net.minecraft.client.Minecraft | grep -A25 "public boolean isPaused()"

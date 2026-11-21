@@ -25,13 +25,13 @@ public final class Compat {
 
     public static void attack(Minecraft mc, LocalPlayer p, Entity e) {
         mc.gameMode.attack(p, e);
-        p.swing(InteractionHand.MAIN_HAND);
+        swing(p);
     }
 
     /** Appelé à chaque tick : démarre puis continue la casse du bloc. */
     public static void mine(Minecraft mc, LocalPlayer p, BlockPos pos, Direction face) {
         mc.gameMode.continueDestroyBlock(pos, face);
-        p.swing(InteractionHand.MAIN_HAND);
+        swing(p);
     }
 
     public static void stopMine(Minecraft mc) {
@@ -40,7 +40,7 @@ public final class Compat {
 
     public static void useOn(Minecraft mc, LocalPlayer p, BlockHitResult hit) {
         mc.gameMode.useItemOn(p, InteractionHand.MAIN_HAND, hit);
-        p.swing(InteractionHand.MAIN_HAND);
+        swing(p);
     }
 
     public static void interact(Minecraft mc, LocalPlayer p, Entity e) {
@@ -101,5 +101,10 @@ public final class Compat {
     /** Écran actuellement ouvert (null = aucun). En 26.x : mc.gui.screen() (le champ mc.screen n'existe plus). */
     public static Screen screen(Minecraft mc) {
         return mc.gui.screen();
+    }
+
+    /** Animation du bras (cosmétique). En 26.3 swing() demande une SwingAnimation : voir l'historique dans le README. */
+    private static void swing(LocalPlayer p) {
+        // TODO 26.3 : p.swing(InteractionHand.MAIN_HAND, <SwingAnimation>, false) -- purement visuel, le serveur n'en dépend pas.
     }
 }

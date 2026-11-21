@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * En solo, un écran "pause" (Options, Succès, ...) gèle le monde. Tant que l'IA joue, on dit au jeu
  * que ces écrans ne sont PAS des écrans de pause => le monde continue de tourner.
- * (PauseScreen, le menu Échap, redéfinit isPauseScreen : voir PauseScreenMixin.)
+ * (En 26.3 le menu Échap PauseScreen hérite de cette méthode : un seul mixin suffit.)
  * require = 0 : si la méthode n'existe plus dans une future version, le mixin est ignoré sans crash.
  */
 @Mixin(Screen.class)
