@@ -57,7 +57,7 @@ jobs:
           ./gradlew build --stacktrace
 
       - name: Inspect Minecraft API (debug, runs on failure)
-        if: failure()
+        if: always()
         continue-on-error: true
         run: |
           JAR=$(find ~/.gradle -name 'minecraft-client.jar' | head -1)
@@ -99,6 +99,20 @@ jobs:
           name: aiplayer-jar
           path: _build/build/libs/aiplayer-*[0-9].jar
           if-no-files-found: error
+
+      # Publie le jar sur la branche "build-output" (pratique pour le récupérer avec git).
+      - name: Publish jar to build-output branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p /tmp/out && cp _build/build/libs/aiplayer-*[0-9].jar /tmp/out/
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git checkout --orphan build-output
+          git rm -rf -q . 2>/dev/null || true
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp /tmp/out/*.jar .
+          git add -f *.jar
+          git commit -q -m "Build ${GITHUB_SHA}"
+          git push -f origin build-output
 
       - name: Release (tags only)
         if: startsWith(github.ref, 'refs/tags/')
