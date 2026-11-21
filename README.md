@@ -88,6 +88,50 @@ Boucle : **perception -> LLM -> JSON -> file d'actions -> exécution tick par ti
 
 ---------------------------------------------------------------------------------------------------------------------
 
+## 3 bis. GUIDE DE REPRISE (si tu es une IA qui continue ce projet, lis ça en premier)
+
+**État** : v1.1.0 compile sur Minecraft 26.3 (CI vert) mais n'a **jamais été lancé en jeu**. Premier objectif réaliste : un humain
+teste en jeu et rapporte les bugs. Ne prétends pas que ça marche sans retour de test.
+
+**Comment le programme tourne (un tick = 1/20 s)** : `AiPlayerMod` -> `ClientTickEvents.START_CLIENT_TICK` -> `Controller.tick()` :
+1. `AiInput.install(player)` (contrôle direct) ; remise à zéro de `forward/jump/sprint/use` ;
+2. si le monde est gelé (`Compat.isPaused`) on s'arrête là ;
+3. `runActions` : prend l'action courante (ou la suivante de `queue`), appelle `action.tick(controller)`. L'action pose des
+   intentions (`c.forward = true`, `c.jump = true`…) ou appelle `Compat.*` (casser, attaquer, cliquer). Elle renvoie RUNNING/DONE/FAILED ;
+4. `AiInput.tick()` (appelé par le jeu pendant `LocalPlayer.aiStep`) transforme ces intentions en mouvement ;
+5. `maybeThink` : si plus rien à faire (ou interruption : dégâts, chat), `think()` envoie `Prompt.SYSTEM` + `Perception.build()` à LM Studio
+   **en asynchrone** ; la réponse JSON revient sur le thread client (`onResponse`), est parsée par `Actions.parse` et remplit `queue`.
+Les résultats (done / FAILED: raison) sont renvoyés à l'IA au tour suivant (`RESULTS OF YOUR LAST ACTIONS`).
+
+**Ajouter une action (exemple : `smelt`)**
+1. `Actions.java` : `public static class Smelt extends Action { tick(), describe(), éventuellement start()/stop()/allowsScreen() }`.
+   Toujours `fail("raison claire et actionnable")` en cas d'échec ; nettoyer dans `stop()` (relâcher, vider le curseur…).
+2. `Actions.parse()` : ajouter `case "smelt": return new Smelt(...)` ; ajouter le nom dans `Actions.TYPES` ; (alias éventuels dans `canonicalType`).
+3. `Prompt.java` : documenter l'action + un exemple JSON, et si besoin une ligne dans les exemples de réponses. **Sans ça le modèle ne la connaît pas.**
+4. Si elle appelle une API Minecraft nouvelle : l'ajouter dans `Compat.java`, pas ailleurs.
+5. Mettre à jour la liste d'actions et l'historique de ce README.
+
+**Boucle de travail avec le CI (aucun Minecraft local nécessaire)**
+1. Modifier le code, `git push origin main`.
+2. GitHub Actions compile (`gh run watch`, `gh run view --log-failed`). Une erreur `cannot find symbol` = API renommée en 26.x :
+   inspecte le vrai jar avec `javap` (le workflow a une étape « Inspect Minecraft API » à adapter : ajouter des lignes `J nom.de.Classe | grep ...`),
+   puis corrige dans `Compat.java`.
+3. Le jar est sur la branche `build-output` : `git fetch origin build-output && git show origin/build-output:aiplayer-1.1.0.jar > aiplayer.jar`.
+   (Les artefacts/releases Actions peuvent être inaccessibles depuis certains environnements : d'où cette branche.)
+4. Une erreur 429 de Maven Central dans le CI est transitoire : relancer le job.
+
+**Déboguer en jeu** : `/ai status` (état, écran ouvert, pause, action courante) ; `showThoughts=true` affiche la pensée de l'IA dans le chat ;
+les erreurs internes s'affichent dans le chat (`§c[AI] …`) et dans `logs/latest.log` ; le mod n'envoie jamais de commandes `/` dans le chat serveur.
+Si l'IA ne répond pas : vérifier `url`/`model` dans `config/aiplayer.json`, que LM Studio tourne, et que le contexte du modèle est ≥ 16k.
+Si le JSON est mal formé : baisser `temperature` (0.2-0.4) ; le mod tolère déjà synonymes d'actions et `pos:[x,y,z]`.
+
+**Pièges connus**
+- Ne jamais supposer `mc.screen == null` : utiliser `Compat.screen(mc)` / `Compat.isContainerScreen(mc)` ; ne jamais fermer le menu Échap.
+- Ne pas simuler de touches (`KeyMapping.setDown`) pour bouger ; seule exception documentée : `keyUse` dans `Controller.applyUse()`.
+- Ne pas bloquer le thread client avec l'appel HTTP (déjà async, rester ainsi) ; toute réponse du LLM est traitée via `mc.execute`.
+- `maxActionsPerPlan` (8) limite la longueur d'un plan ; les actions de haut niveau (`collect`, `craft`) existent pour que 8 suffise.
+- Le prompt est en anglais volontairement (meilleur suivi par les petits modèles) ; garder des consignes courtes, numérotées, avec exemples.
+
 ## 4. Zones fragiles / à vérifier en premier sur 26.3
 
 1. `AiInput` : `ClientInput.tick()` (signature, a changé entre 1.21.3 et 1.21.11), `keyPresses`, `moveVector`,
