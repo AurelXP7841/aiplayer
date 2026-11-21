@@ -58,18 +58,33 @@ jobs:
 
       - name: Inspect Minecraft API (debug, runs on failure)
         if: failure()
+        continue-on-error: true
         run: |
-          JAR=$(find ~/.gradle _build/.gradle -name '*.jar' -path '*minecraft*' 2>/dev/null | xargs -I{} sh -c 'unzip -l {} 2>/dev/null | grep -q "net/minecraft/client/Minecraft.class" && echo {}' | head -1)
+          JAR=$(find ~/.gradle -name 'minecraft-client.jar' | head -1)
           echo "JAR=$JAR"
-          [ -z "$JAR" ] && exit 0
-          echo "--- classes matching Click|Message|Chat in inventory/network/gui"; unzip -l "$JAR" | awk '{print $4}' | grep -E "net/minecraft/world/inventory/.*Click|ContainerInput|net/minecraft/client/gui/Gui\.class|net/minecraft/client/Minecraft\.class" | head
-          echo "--- Minecraft"; javap -cp "$JAR" -public net.minecraft.client.Minecraft | grep -iE "screen|gui|isPaused|gameMode|options| player|level" | head -40
-          echo "--- Gui"; javap -cp "$JAR" -public net.minecraft.client.gui.Gui 2>&1 | grep -iE "screen|message|chat" | head -20
-          echo "--- LocalPlayer"; javap -cp "$JAR" -public net.minecraft.client.player.LocalPlayer | grep -iE "message|chat|input|respawn|ClientInput" | head -20
-          echo "--- MultiPlayerGameMode"; javap -cp "$JAR" -public net.minecraft.client.multiplayer.MultiPlayerGameMode | grep -iE "click|useItem|release|attack|destroy|interact" | head -20
-          echo "--- ClientInput/KeyboardInput"; javap -cp "$JAR" -public -protected net.minecraft.client.player.ClientInput net.minecraft.client.player.KeyboardInput 2>&1 | head -30
-          echo "--- Screen"; javap -cp "$JAR" -public net.minecraft.client.gui.screens.Screen | grep -iE "isPauseScreen"; javap -cp "$JAR" -public net.minecraft.client.gui.screens.PauseScreen | grep -iE "isPauseScreen"
-          echo "--- all classes containing 'Click'"; unzip -l "$JAR" | awk '{print $4}' | grep -E "Click" | head -20
+          J() { javap -cp "$JAR" -public -protected "$@" 2>&1 || true; }
+          echo "=== ContainerInput"; J net.minecraft.world.inventory.ContainerInput
+          echo "=== ClickAction"; J net.minecraft.world.inventory.ClickAction | head -8
+          echo "=== MultiPlayerGameMode (all)"; J net.minecraft.client.multiplayer.MultiPlayerGameMode
+          echo "=== AbstractContainerMenu clicked/getCarried/slots"; J net.minecraft.world.inventory.AbstractContainerMenu | grep -E "clicked|getCarried|slots|getSlot|containerId"
+          echo "=== Gui (all)"; J net.minecraft.client.gui.Gui | grep -iE "screen|pause|overlay"
+          echo "=== Minecraft pause/screen/setScreen"; J net.minecraft.client.Minecraft | grep -iE "pause|setScreen|screen\(|isPaused|pauseGame"
+          echo "=== PauseScreen"; J net.minecraft.client.gui.screens.PauseScreen | head -30
+          echo "=== Screen pause"; J net.minecraft.client.gui.screens.Screen | grep -iE "pause"
+          echo "=== ClientInput"; J net.minecraft.client.player.ClientInput
+          echo "=== KeyboardInput"; J net.minecraft.client.player.KeyboardInput
+          echo "=== Input"; J net.minecraft.world.entity.player.Input
+          echo "=== Vec2"; J net.minecraft.world.phys.Vec2 | head -5
+          echo "=== LocalPlayer msgs/respawn/closeContainer/chat"; J net.minecraft.client.player.LocalPlayer | grep -iE "message|respawn|closeContainer|sendChat|connection"
+          echo "=== ClientPacketListener sendChat"; J net.minecraft.client.multiplayer.ClientPacketListener | grep -iE "sendChat|sendCommand"
+          echo "=== Inventory selected"; J net.minecraft.world.entity.player.Inventory | grep -iE "selected"
+          echo "=== ItemStack has/getDestroySpeed/isDamageable"; J net.minecraft.world.item.ItemStack | grep -E " has\(|getDestroySpeed|isDamageableItem|getMaxDamage|getDamageValue"
+          echo "=== DataComponents FOOD"; J net.minecraft.core.component.DataComponents | grep -E " FOOD"
+          echo "=== Options keys"; J net.minecraft.client.Options | grep -E "keyUse|keyShift"
+          echo "=== ClientCommands/ClientReceiveMessageEvents"; unzip -l $(find ~/.gradle -name 'fabric-command-api-v2*.jar' | head -1) 2>/dev/null | grep -i ClientCommand | head -3
+          echo "=== Player attack strength"; J net.minecraft.world.entity.player.Player | grep -E "getAttackStrengthScale|getFoodData"
+          echo "=== Entity getEyePosition/blockPosition/getDirection"; J net.minecraft.world.entity.Entity | grep -E "getEyePosition|getDirection|swing"
+          echo "=== LivingEntity swing"; J net.minecraft.world.entity.LivingEntity | grep -E " swing\(|isDeadOrDying"
 
       - uses: actions/upload-artifact@v4
         with:
