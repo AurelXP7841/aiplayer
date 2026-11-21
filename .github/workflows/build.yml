@@ -63,6 +63,8 @@ jobs:
           JAR=$(find ~/.gradle -name 'minecraft-client.jar' | head -1)
           echo "JAR=$JAR"
           J() { javap -cp "$JAR" -protected "$@" 2>&1 || true; }
+          echo "=== Fabric Screens helper"; SJ=$(find ~/.gradle -name 'fabric-screen-api-v1*.jar' ! -name '*sources*' | head -1); echo "SJ=$SJ"; javap -cp "$SJ" -protected net.fabricmc.fabric.api.client.screen.v1.Screens 2>&1 | head -20 || true
+          echo "=== Screen rebuild/addRenderable"; J net.minecraft.client.gui.screens.Screen | grep -iE "rebuild|addRenderable|addWidget|children|clearWidgets|onClose|resize|init\(" || true
           echo "=== ContainerInput"; J net.minecraft.world.inventory.ContainerInput
           echo "=== ClickAction"; J net.minecraft.world.inventory.ClickAction | head -8
           echo "=== MultiPlayerGameMode (all)"; J net.minecraft.client.multiplayer.MultiPlayerGameMode
@@ -90,8 +92,6 @@ jobs:
           echo "=== callers of Screen.isPauseScreen"; for c in net/minecraft/client/Minecraft net/minecraft/client/gui/Gui net/minecraft/client/gui/screens/Screen; do echo "-- $c"; javap -cp "$JAR" -p -c "$c" | grep -B8 "isPauseScreen" | grep -E "^  [a-z].*\(|isPauseScreen" | head -20; done
           echo "=== Screen.isPauseScreen overridden in"; for f in $(unzip -l "$JAR" | awk '{print $4}' | grep 'net/minecraft/client/gui/screens/.*Screen.class'); do c=${f%.class}; c=${c//\//.}; javap -cp "$JAR" -p "$c" 2>/dev/null | grep -q "isPauseScreen" && echo $c; done | head -30
           echo "=== ClientCommands/ClientReceiveMessageEvents"; unzip -l $(find ~/.gradle -name 'fabric-command-api-v2*.jar' | head -1) 2>/dev/null | grep -i ClientCommand | head -3
-          echo "=== Fabric Screens helper"; SJ=$(find ~/.gradle -name 'fabric-screen-api-v1*.jar' ! -name '*sources*' | head -1); echo "SJ=$SJ"; javap -cp "$SJ" -protected net.fabricmc.fabric.api.client.screen.v1.Screens 2>&1 | head -20
-          echo "=== Screen rebuild/addRenderable"; J net.minecraft.client.gui.screens.Screen | grep -iE "rebuild|addRenderable|addWidget|children|clearWidgets|onClose|resize|init\("
           echo "=== Player attack strength"; J net.minecraft.world.entity.player.Player | grep -E "getAttackStrengthScale|getFoodData"
           echo "=== Entity getEyePosition/blockPosition/getDirection"; J net.minecraft.world.entity.Entity | grep -E "getEyePosition|getDirection|swing"
           echo "=== LivingEntity swing"; J net.minecraft.world.entity.LivingEntity | grep -E " swing\(|isDeadOrDying"
